@@ -2,7 +2,7 @@
   <div class="apple-wrapper">
     <nav class="navbar">
       <div class="nav-content">
-        <a href="/" class="nav-logo">Dana Kim</a>
+        <a href="/" class="nav-logo">>>_Dana Kim</a>
         <div class="nav-links">
           <a href="#philosophy">Philosophy</a>
           <a href="#experience">Experience</a>
@@ -23,8 +23,8 @@
           <p class="hero-subtitle">예쁘게 정리된 데이터가 아닌, 실제 문제를 해결하는 시스템을 만듭니다.</p>
           
           <div class="social-links">
-            <a href="mailto:본인메일@gmail.com" target="_blank" class="social-btn">Gmail</a>
-            <a href="https://www.linkedin.com/in/본인링크드인주소" target="_blank" class="social-btn">LinkedIn</a>
+            <a href="mailto:danakkii22@gmail.com" target="_blank" class="social-btn">Gmail</a>
+            <a href="https://www.linkedin.com/in/dana-kim-24a547325/" target="_blank" class="social-btn">LinkedIn</a>
             <a href="https://github.com/danakkii" target="_blank" class="social-btn">GitHub</a>
           </div>
         </div>
@@ -47,7 +47,7 @@
             <div class="timeline-card animate-on-scroll">
               <div class="card-header">
                 <h3>Data Analytics Engineer</h3>
-                <span class="company">Teamremited (팀리미티드)</span>
+                <span class="company">Teamremited</span>
                 <span class="period">2025.09 – Present</span>
               </div>
               <ul class="achievements">
@@ -61,7 +61,7 @@
             <div class="timeline-card animate-on-scroll">
               <div class="card-header">
                 <h3>Back-end Developer</h3>
-                <span class="company">Teamremited (팀리미티드)</span>
+                <span class="company">Teamremited </span>
                 <span class="period">2024.12 – 2025.09</span>
               </div>
               <ul class="achievements">
@@ -74,7 +74,7 @@
             <div class="timeline-card animate-on-scroll">
               <div class="card-header">
                 <h3>AI Application Engineer</h3>
-                <span class="company">Elroilab (엘로이랩)</span>
+                <span class="company">Elroilab </span>
                 <span class="period">2023.06 – 2024.12</span>
               </div>
               <ul class="achievements">
