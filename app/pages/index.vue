@@ -268,22 +268,13 @@ onMounted(() => {
   padding: 64px 0;
 }
 .section-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 1rem;
+  font-size: 0.78rem;
   font-weight: 700;
-  color: #1d1d1f;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #8a8a8e;
   margin: 0 0 36px 0;
-  letter-spacing: -0.01em;
-}
-.section-title::before {
-  content: '##';
   font-family: 'JetBrains Mono', monospace;
-  font-size: 0.82rem;
-  font-weight: 500;
-  color: #b0b0b8;
-  letter-spacing: 0;
 }
 
 .divider {
@@ -406,28 +397,36 @@ onMounted(() => {
 .loading { font-size: 0.9rem; color: #8a8a8e; padding: 24px 0; }
 .empty { font-size: 0.9rem; color: #8a8a8e; padding: 24px 0; }
 
-.post-list { border-top: 1px solid #e8e8e6; }
+.post-list { display: flex; flex-direction: column; gap: 12px; }
 .post-item {
   display: block;
   text-decoration: none;
   color: inherit;
-  padding: 24px 0 24px 16px;
-  border-bottom: 1px solid #e8e8e6;
+  padding: 22px 24px;
+  background: #fff;
+  border: 1px solid #e8e8e6;
+  border-radius: 12px;
   position: relative;
-  transition: padding-left 0.2s ease;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  overflow: hidden;
 }
 .post-item::before {
   content: '';
   position: absolute;
   left: 0; top: 0; bottom: 0;
-  width: 2px;
+  width: 3px;
   background: #0066cc;
   transform: scaleY(0);
   transition: transform 0.2s ease;
   transform-origin: center;
+  border-radius: 3px 0 0 3px;
 }
 .post-item:hover::before { transform: scaleY(1); }
-.post-item:hover { padding-left: 22px; }
+.post-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.07);
+  border-color: #d0d0d0;
+}
 
 .post-date {
   display: block;
