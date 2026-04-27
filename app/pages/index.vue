@@ -2,13 +2,10 @@
   <div class="wrapper">
     <nav class="navbar">
       <div class="nav-inner">
-        <a href="/" class="nav-logo">>>_ Dana Kim</a>
+        <NuxtLink to="/" class="nav-logo">>>_ DanaKim</NuxtLink>
         <div class="nav-links">
-          <a href="#about">About</a>
-          <a href="#career">Career</a>
-          <a href="#tech">Tech</a>
-          <a href="#logs">Logs</a>
-          <a href="#guestbook">Guestbook</a>
+          <NuxtLink to="/" exact-active-class="nav-active">Home</NuxtLink>
+          <NuxtLink to="/blog" active-class="nav-active">Blog</NuxtLink>
         </div>
       </div>
     </nav>
@@ -19,11 +16,7 @@
       <section id="about" class="section about-section">
         <p class="about-label">Data Analytics Engineer</p>
         <h1 class="about-name">Dana Kim</h1>
-        <p class="about-bio">
-          Data Analytics Engineer with experience building end-to-end data systems — from ingestion pipelines to real-time APIs and LLM-powered automation.<br/>
-          I focus on turning messy, large-scale data into reliable infrastructure that drives operational decisions across business teams.<br/>
-          Currently at Teamremited, leading data architecture, analytics engineering, and AI integration projects.
-        </p>
+        <p class="about-bio">Building end-to-end data systems — from ingestion pipelines to real-time APIs and LLM-powered automation, turning large-scale data into reliable infrastructure.</p>
         <p class="about-bio-ko">데이터가 실제 문제를 해결하는 시스템이 될 때까지 설계합니다.</p>
         <div class="social-row">
           <a href="mailto:danakkii22@gmail.com" target="_blank" class="social-link">Gmail</a>
@@ -91,11 +84,11 @@
         <div class="tech-table">
           <div class="tech-row">
             <span class="tech-category">Data & Pipeline</span>
-            <span class="tech-tags">BigQuery · Airflow · Redis · MongoDB · PostgreSQL</span>
+            <span class="tech-tags">BigQuery · Airflow · Redis · MongoDB · Qdrant</span>
           </div>
           <div class="tech-row">
             <span class="tech-category">Backend & AI</span>
-            <span class="tech-tags">Python · FastAPI · Node.js · PyTorch · Qdrant</span>
+            <span class="tech-tags">Python · FastAPI · Node.js · PyTorch</span>
           </div>
           <div class="tech-row">
             <span class="tech-category">Infra & Analytics</span>
@@ -106,20 +99,20 @@
 
       <div class="divider"></div>
 
-      <!-- Logs -->
-      <section id="logs" class="section">
-        <div class="logs-header">
-          <h2 class="section-title">Logs</h2>
-          <p class="logs-desc">데이터와 개발에 관한 생각들을 기록합니다.</p>
+      <!-- Latest Blog -->
+      <section id="latest" class="section">
+        <div class="latest-header">
+          <h2 class="section-title">Latest Posts</h2>
+          <NuxtLink to="/blog" class="view-all">All posts →</NuxtLink>
         </div>
 
         <div v-if="pending" class="loading">불러오는 중...</div>
 
         <div v-else class="post-list">
-          <p v-if="!posts || posts.length === 0" class="empty">아직 작성된 로그가 없습니다.</p>
+          <p v-if="!latestPosts || latestPosts.length === 0" class="empty">아직 작성된 글이 없습니다.</p>
 
           <NuxtLink
-            v-for="post in posts"
+            v-for="post in latestPosts"
             :key="post.id"
             :to="`/posts/${post.id}`"
             class="post-item"
@@ -154,12 +147,13 @@ import { ref, onMounted } from 'vue'
 
 const supabase = useSupabaseClient()
 
-const { data: posts, pending } = await useAsyncData('posts', async () => {
+const { data: latestPosts, pending } = await useAsyncData('latest-posts', async () => {
   const { data } = await supabase
     .from('post')
     .select('id, created_at, title, content')
     .order('created_at', { ascending: false })
-  return data
+    .limit(3)
+  return data || []
 })
 
 const formatDate = (dateString) => {
@@ -179,6 +173,7 @@ const getPreviewText = (text) => {
     .replace(/`{1,3}[^`\n]*`{1,3}/g, '')
     .replace(/\n/g, ' ')
     .trim()
+    .slice(0, 160)
 }
 
 const giscusContainer = ref(null)
@@ -215,6 +210,8 @@ onMounted(() => {
   background: #fafaf8;
   color: #1d1d1f;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  min-width: 0;
 }
 
 /* Nav */
@@ -243,10 +240,7 @@ onMounted(() => {
   text-decoration: none;
   letter-spacing: 0.02em;
 }
-.nav-links {
-  display: flex;
-  gap: 20px;
-}
+.nav-links { display: flex; gap: 20px; }
 .nav-links a {
   font-size: 0.85rem;
   color: #6e6e73;
@@ -255,18 +249,18 @@ onMounted(() => {
   transition: color 0.15s;
 }
 .nav-links a:hover { color: #1d1d1f; }
+.nav-links a.nav-active { color: #1d1d1f; font-weight: 600; }
 
 /* Main */
 .main {
   max-width: 760px;
   margin: 0 auto;
   padding: 0 24px;
+  min-width: 0;
 }
 
-/* Section base */
-.section {
-  padding: 64px 0;
-}
+/* Section */
+.section { padding: 64px 0; }
 .section-title {
   font-size: 0.78rem;
   font-weight: 700;
@@ -276,11 +270,7 @@ onMounted(() => {
   margin: 0 0 36px 0;
   font-family: 'JetBrains Mono', monospace;
 }
-
-.divider {
-  height: 1px;
-  background: #e8e8e6;
-}
+.divider { height: 1px; background: #e8e8e6; }
 
 /* About */
 .about-section { padding-top: 72px; }
@@ -313,12 +303,12 @@ onMounted(() => {
   color: #8a8a8e;
   font-style: italic;
   margin: 0 0 28px 0;
-  padding-left: 2px;
 }
 .social-row {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
 }
 .social-link {
   font-size: 0.85rem;
@@ -391,9 +381,22 @@ onMounted(() => {
   line-height: 1.5;
 }
 
-/* Logs */
-.logs-header { margin-bottom: 32px; }
-.logs-desc { font-size: 0.9rem; color: #8a8a8e; margin: -20px 0 0 0; }
+/* Latest Posts */
+.latest-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 36px;
+}
+.latest-header .section-title { margin-bottom: 0; }
+.view-all {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #0066cc;
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+.view-all:hover { opacity: 0.7; }
 .loading { font-size: 0.9rem; color: #8a8a8e; padding: 24px 0; }
 .empty { font-size: 0.9rem; color: #8a8a8e; padding: 24px 0; }
 
@@ -427,7 +430,6 @@ onMounted(() => {
   box-shadow: 0 4px 16px rgba(0,0,0,0.07);
   border-color: #d0d0d0;
 }
-
 .post-date {
   display: block;
   font-size: 0.75rem;
@@ -488,10 +490,12 @@ onMounted(() => {
 
 /* Mobile */
 @media (max-width: 600px) {
-  .nav-links { display: none; }
   .about-name { font-size: 1.8rem; }
+  .section { padding: 48px 0; }
+  .about-section { padding-top: 48px; }
   .tech-row { flex-direction: column; gap: 6px; }
   .tech-category { min-width: unset; }
   .career-item { padding-left: 12px; }
+  .post-item { padding: 16px 18px; }
 }
 </style>

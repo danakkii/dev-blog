@@ -47,6 +47,10 @@
 
     <main class="editor-main">
       <input v-model="title" class="title-input" type="text" placeholder="Post title..." />
+      <div class="category-row">
+        <span class="category-prefix"># category</span>
+        <input v-model="category" class="category-input" type="text" placeholder="예: Data, Backend, AI ..." />
+      </div>
 
       <!-- 툴바 -->
       <div class="toolbar">
@@ -69,7 +73,10 @@
       <div class="editor-split">
         <div class="pane write-pane">
           <div class="pane-label">Markdown</div>
-          <textarea ref="textareaEl" v-model="content" class="markdown-textarea" placeholder="Write in markdown..." spellcheck="false"></textarea>
+          <textarea ref="textareaEl" v-model="content" class="markdown-textarea" placeholder="Write in markdown..." spellcheck="false" @paste="handlePaste"></textarea>
+          <div v-if="fetchingLink" class="fetch-indicator">
+            <span class="fetch-dot"></span> 링크 제목 가져오는 중...
+          </div>
         </div>
         <div class="pane preview-pane">
           <div class="pane-label">Preview</div>
@@ -123,8 +130,10 @@ const loginError = ref(false)
 
 const title = ref('')
 const content = ref('')
+const category = ref('')
 const publishing = ref(false)
 const uploading = ref(false)
+const fetchingLink = ref(false)
 const toast = ref('')
 
 const editingPostId = ref(null)
@@ -152,7 +161,7 @@ const login = async () => {
 const loadPosts = async () => {
   const { data } = await supabase
     .from('post')
-    .select('id, created_at, title, content')
+    .select('id, created_at, title, content, category')
     .order('created_at', { ascending: false })
   allPosts.value = data || []
 }
@@ -170,6 +179,7 @@ const startEdit = (post) => {
   editingPostId.value = post.id
   title.value = post.title
   content.value = post.content
+  category.value = post.category || ''
   showPosts.value = false
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
@@ -178,6 +188,7 @@ const resetEditor = () => {
   editingPostId.value = null
   title.value = ''
   content.value = ''
+  category.value = ''
 }
 
 // ── 삭제 ──────────────────────────────────────────────
@@ -256,32 +267,85 @@ const insertCodeBlock = () => {
 // ── 링크 다이얼로그 ────────────────────────────────────
 const openLinkDialog = () => {
   const ta = textareaEl.value
-  const selected = ta ? content.value.substring(ta.selectionStart, ta.selectionEnd) : ''
-  linkDialog.value = { show: true, text: selected, url: '', cursorPos: ta?.selectionStart ?? content.value.length }
+  const start = ta?.selectionStart ?? content.value.length
+  const end = ta?.selectionEnd ?? content.value.length
+  const selected = ta ? content.value.substring(start, end) : ''
+  linkDialog.value = { show: true, text: selected, url: '', cursorStart: start, cursorEnd: end }
 }
 
 const confirmLink = () => {
-  const { text, url, cursorPos } = linkDialog.value
+  const { text, url, cursorStart, cursorEnd } = linkDialog.value
   if (!url.trim()) return
   const markdown = `[${text.trim() || url}](${url})`
-  content.value = content.value.substring(0, cursorPos) + markdown + content.value.substring(cursorPos + text.length)
+  // cursorStart~cursorEnd 범위(원본 선택 구간)를 markdown으로 정확히 대체
+  content.value = content.value.substring(0, cursorStart) + markdown + content.value.substring(cursorEnd)
   linkDialog.value.show = false
   nextTick(() => textareaEl.value?.focus())
 }
 
 // ── 이미지 업로드 ─────────────────────────────────────
+const BUCKET = 'blog-images'
+
 const uploadImage = async (event) => {
   const file = event.target.files[0]
   if (!file) return
   uploading.value = true
+
   const fileName = `${Date.now()}.${file.name.split('.').pop()}`
-  const { data, error } = await supabase.storage.from('blog-images').upload(fileName, file, { cacheControl: '3600', upsert: false })
+  let { data, error } = await supabase.storage.from(BUCKET).upload(fileName, file, { cacheControl: '3600', upsert: false })
+
+  // bucket이 없으면 자동 생성 후 재시도
+  if (error && (error.statusCode === 404 || error.message?.toLowerCase().includes('not found') || error.message?.toLowerCase().includes('bucket'))) {
+    const { error: createErr } = await supabase.storage.createBucket(BUCKET, {
+      public: true,
+      allowedMimeTypes: ['image/*'],
+      fileSizeLimit: 10485760
+    })
+    if (!createErr) {
+      const retry = await supabase.storage.from(BUCKET).upload(fileName, file, { cacheControl: '3600', upsert: false })
+      data = retry.data
+      error = retry.error
+    } else {
+      showToast('Supabase Storage에서 "blog-images" 버킷을 Public으로 먼저 생성해주세요.')
+      uploading.value = false
+      event.target.value = ''
+      return
+    }
+  }
+
   if (error) { showToast('업로드 실패: ' + error.message); uploading.value = false; event.target.value = ''; return }
-  const { data: urlData } = supabase.storage.from('blog-images').getPublicUrl(data.path)
+  const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(data.path)
   insertAtCursor(`![image](${urlData.publicUrl})`)
   uploading.value = false
   event.target.value = ''
   showToast('✓ 이미지 업로드 완료')
+}
+
+// ── URL 붙여넣기 → 링크 제목 자동 변환 ──────────────────
+const handlePaste = async (e) => {
+  const text = e.clipboardData?.getData('text/plain')?.trim()
+  if (!text) return
+
+  // URL인지 확인
+  let parsed
+  try {
+    parsed = new URL(text)
+    if (!parsed.protocol.startsWith('http')) return
+  } catch {
+    return // 일반 텍스트는 기본 붙여넣기
+  }
+
+  e.preventDefault()
+  fetchingLink.value = true
+
+  try {
+    const { title: pageTitle } = await $fetch(`/api/link-preview?url=${encodeURIComponent(text)}`)
+    insertAtCursor(pageTitle ? `[${pageTitle}](${text})` : text)
+  } catch {
+    insertAtCursor(text)
+  } finally {
+    fetchingLink.value = false
+  }
 }
 
 // ── 저장 (발행 / 수정) ────────────────────────────────
@@ -291,10 +355,16 @@ const save = async () => {
 
   publishing.value = true
 
+  const payload = {
+    title: title.value.trim(),
+    content: content.value.trim(),
+    category: category.value.trim() || null
+  }
+
   if (editingPostId.value) {
     const { error } = await supabase
       .from('post')
-      .update({ title: title.value.trim(), content: content.value.trim() })
+      .update(payload)
       .eq('id', editingPostId.value)
     publishing.value = false
     if (error) { showToast('오류: ' + error.message); return }
@@ -302,7 +372,7 @@ const save = async () => {
   } else {
     const { error } = await supabase
       .from('post')
-      .insert({ title: title.value.trim(), content: content.value.trim() })
+      .insert(payload)
     publishing.value = false
     if (error) { showToast('오류: ' + error.message); return }
     showToast('✓ 발행되었습니다!')
@@ -395,6 +465,39 @@ const save = async () => {
 .title-input { width: 100%; font-size: 1.8rem; font-weight: 800; font-family: inherit; color: #111; background: transparent; border: none; border-bottom: 2px solid #e0e0e0; padding: 8px 0 14px; outline: none; letter-spacing: -0.03em; transition: border-color 0.2s; }
 .title-input:focus { border-color: #0066cc; }
 .title-input::placeholder { color: #c0c0c0; }
+.category-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #e0e0e0; }
+.category-prefix { font-size: 0.76rem; font-weight: 700; color: #8a8a8e; font-family: 'JetBrains Mono', monospace; letter-spacing: 0.06em; white-space: nowrap; }
+.category-input { flex: 1; font-size: 0.9rem; font-family: inherit; color: #2c2c2e; background: transparent; border: none; outline: none; }
+.category-input::placeholder { color: #c8c8c8; }
+
+/* Link fetch indicator */
+.write-pane { position: relative; }
+.fetch-indicator {
+  position: absolute;
+  bottom: 12px;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: #8a8a8e;
+  background: rgba(250,250,248,0.92);
+  padding: 5px 10px;
+  border-radius: 20px;
+  border: 1px solid #e0e0e0;
+  pointer-events: none;
+}
+.fetch-dot {
+  width: 7px;
+  height: 7px;
+  background: #0066cc;
+  border-radius: 50%;
+  animation: pulse 1s infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
 
 /* Toolbar */
 .toolbar { display: flex; align-items: center; gap: 6px; padding: 8px 12px; background: #f4f4f2; border: 1px solid #e0e0e0; border-radius: 10px; flex-wrap: wrap; }
