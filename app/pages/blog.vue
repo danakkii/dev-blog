@@ -37,7 +37,7 @@
               <div class="cat-right">
                 <span class="cat-count">{{ data.totalCount }}</span>
                 <button
-                  v-if="data.children.size > 0"
+                  v-if="data.children.size > 0 || data.tags.size > 0"
                   class="expand-btn"
                   @click.stop="toggleParent(parent)"
                   :aria-label="expandedParents.has(parent) ? '접기' : '펼치기'"
@@ -50,6 +50,7 @@
               </div>
             </li>
 
+            <!-- 서브카테고리 -->
             <li
               v-for="[child, count] in data.children"
               v-show="expandedParents.has(parent)"
@@ -58,6 +59,18 @@
               @click="selectCategory(`${parent}/${child}`)"
             >
               <span class="cat-name">{{ child }}</span>
+              <span class="cat-count">{{ count }}</span>
+            </li>
+
+            <!-- 태그 목록 -->
+            <li
+              v-for="[tag, count] in data.tags"
+              v-show="expandedParents.has(parent)"
+              :key="`tag_${parent}_${tag}`"
+              :class="['cat-item', 'tag-item', { active: selectedTagId === tag }]"
+              @click="selectTagFromSidebar(tag)"
+            >
+              <span class="cat-name"># {{ tag }}</span>
               <span class="cat-count">{{ count }}</span>
             </li>
           </template>
@@ -70,13 +83,7 @@
         <!-- Tag graph -->
         <div class="graph-section">
           <button class="graph-header" @click="graphVisible = !graphVisible">
-            <div class="graph-header-left">
-              <span class="graph-label">Tag Space</span>
-              <span class="graph-legend">
-                <span class="legend-dot" style="background:#2563eb"></span>category
-                <span class="legend-dot" style="background:#7c3aed"></span>tag
-              </span>
-            </div>
+            <span class="graph-label">Tag Space</span>
             <svg
               width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
               stroke-linecap="round" stroke-linejoin="round"
@@ -197,6 +204,9 @@ const { data: posts, pending } = await useAsyncData('blog-posts', async () => {
   return data || []
 })
 
+const parseTagList = (tags) =>
+  tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : []
+
 // ── Category tree ────────────────────────────────────────────────────
 const categoryTree = computed(() => {
   const tree = new Map()
@@ -205,11 +215,17 @@ const categoryTree = computed(() => {
     const parts = post.category.split('/').map(s => s.trim())
     const parent = parts[0]
     const child = parts[1]
-    if (!tree.has(parent)) tree.set(parent, { totalCount: 0, children: new Map() })
-    tree.get(parent).totalCount++
+    if (!tree.has(parent)) tree.set(parent, { totalCount: 0, children: new Map(), tags: new Map() })
+    const parentData = tree.get(parent)
+    parentData.totalCount++
     if (child) {
-      const c = tree.get(parent).children
+      const c = parentData.children
       c.set(child, (c.get(child) || 0) + 1)
+    }
+    if (post.tags) {
+      parseTagList(post.tags).forEach(tag => {
+        parentData.tags.set(tag, (parentData.tags.get(tag) || 0) + 1)
+      })
     }
   })
   return tree
@@ -218,7 +234,7 @@ const categoryTree = computed(() => {
 watch(categoryTree, tree => {
   const expanded = new Set(expandedParents.value)
   for (const [parent, data] of tree) {
-    if (data.children.size > 0) expanded.add(parent)
+    if (data.children.size > 0 || data.tags.size > 0) expanded.add(parent)
   }
   expandedParents.value = expanded
 }, { immediate: true })
@@ -228,6 +244,10 @@ const selectAll = () => { selectedCategory.value = 'All'; selectedTagId.value = 
 const selectParent = (p) => { selectedCategory.value = p; selectedTagId.value = null }
 const selectCategory = (cat) => { selectedCategory.value = cat; selectedTagId.value = null }
 const clearTagFilter = () => { selectedTagId.value = null }
+const selectTagFromSidebar = (tag) => {
+  selectedTagId.value = selectedTagId.value === tag ? null : tag
+  if (selectedTagId.value) selectedCategory.value = 'All'
+}
 
 const toggleParent = (parent) => {
   const s = new Set(expandedParents.value)
@@ -242,9 +262,6 @@ const displayCategory = (cat) => {
   const parts = cat.split('/')
   return parts[parts.length - 1].trim()
 }
-
-const parseTagList = (tags) =>
-  tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : []
 
 // ── Filtering ────────────────────────────────────────────────────────
 const getPostTagSet = (post) => {
@@ -411,12 +428,6 @@ function tickSim() {
   animAlpha = Math.max(0, animAlpha * 0.992)
 }
 
-// 색상 팔레트: category=blue, tag=purple
-const COLORS = {
-  category: { fill: '#2563eb', stroke: '#1d4ed8', label: '#1e40af', selFill: '#1d4ed8', selStroke: '#3b82f6', hovFill: '#3b82f6', hovStroke: '#60a5fa', dimFill: '#dbeafe', dimStroke: '#bfdbfe', glow: 'rgba(37,99,235,0.15)' },
-  tag:      { fill: '#7c3aed', stroke: '#6d28d9', label: '#5b21b6', selFill: '#6d28d9', selStroke: '#8b5cf6', hovFill: '#8b5cf6', hovStroke: '#a78bfa', dimFill: '#ede9fe', dimStroke: '#ddd6fe', glow: 'rgba(124,58,237,0.15)' }
-}
-
 function renderGraph() {
   const canvas = graphCanvas.value
   if (!canvas) return
@@ -446,10 +457,8 @@ function renderGraph() {
     const s = nodeMap.get(edge.s), t = nodeMap.get(edge.t)
     if (!s || !t) return
     const hot = hotEdges.has(i)
-    const targetNode = nodeMap.get(edge.t)
-    const selEdge = selectedTagId.value && (edge.t === selectedTagId.value)
-    const selColor = targetNode?.type === 'tag' ? 'rgba(124,58,237,0.45)' : 'rgba(37,99,235,0.45)'
-    ctx.strokeStyle = selEdge ? selColor : hot ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.09)'
+    const selEdge = selectedTagId.value && edge.t === selectedTagId.value
+    ctx.strokeStyle = selEdge ? 'rgba(0,0,0,0.35)' : hot ? 'rgba(0,0,0,0.22)' : 'rgba(0,0,0,0.07)'
     ctx.lineWidth = hot || selEdge ? 1.4 : 0.7
     ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(t.x, t.y); ctx.stroke()
   })
@@ -460,39 +469,37 @@ function renderGraph() {
     const hot = hoveredNodeId ? connectedIds.has(node.id) : false
     const selPost = selectedTagId.value && simEdges.some(e => e.s === node.id && e.t === selectedTagId.value)
     const dimmed = hoveredNodeId && !hot
-
     ctx.beginPath()
     ctx.arc(node.x, node.y, dimmed ? 1.8 : 2.5, 0, Math.PI * 2)
-    ctx.fillStyle = selPost ? '#2563eb' : dimmed ? '#d1d5db' : hot ? '#6b7280' : '#9ca3af'
+    ctx.fillStyle = selPost ? '#1d1d1f' : dimmed ? '#e5e7eb' : hot ? '#6b7280' : '#b0b0b8'
     ctx.fill()
   }
 
-  // Draw category/tag nodes
+  // Draw label nodes (category & tag — same gray palette)
   for (const node of simNodes) {
     if (node.type === 'post') continue
-    const C = COLORS[node.type] || COLORS.category
     const r = 7 + Math.log(node.count + 1) * 4.5
     const isHov = hoveredNodeId === node.id
     const isSel = selectedTagId.value === node.id
     const dimmed = hoveredNodeId && !connectedIds.has(node.id) && !isHov
 
-    // Glow
+    // Soft glow on hover/select
     if (isHov || isSel) {
-      const grd = ctx.createRadialGradient(node.x, node.y, r * 0.4, node.x, node.y, r + 14)
-      grd.addColorStop(0, C.glow.replace('0.15', isSel ? '0.25' : '0.18'))
-      grd.addColorStop(1, 'rgba(255,255,255,0)')
-      ctx.beginPath(); ctx.arc(node.x, node.y, r + 14, 0, Math.PI * 2)
+      const grd = ctx.createRadialGradient(node.x, node.y, r * 0.4, node.x, node.y, r + 13)
+      grd.addColorStop(0, 'rgba(0,0,0,0.08)')
+      grd.addColorStop(1, 'rgba(0,0,0,0)')
+      ctx.beginPath(); ctx.arc(node.x, node.y, r + 13, 0, Math.PI * 2)
       ctx.fillStyle = grd; ctx.fill()
     }
 
     ctx.beginPath(); ctx.arc(node.x, node.y, r, 0, Math.PI * 2)
-    ctx.fillStyle = isSel ? C.selFill : isHov ? C.hovFill : dimmed ? C.dimFill : C.fill
+    ctx.fillStyle = isSel ? '#1d1d1f' : isHov ? '#4b5563' : dimmed ? '#e5e7eb' : '#9ca3af'
     ctx.fill()
-    ctx.strokeStyle = isSel ? C.selStroke : isHov ? C.hovStroke : dimmed ? C.dimStroke : C.stroke
+    ctx.strokeStyle = isSel ? '#111' : isHov ? '#374151' : dimmed ? '#d1d5db' : '#6b7280'
     ctx.lineWidth = isSel ? 2 : 1.5; ctx.stroke()
 
     // Label
-    ctx.fillStyle = dimmed ? C.dimStroke : isSel || isHov ? C.label : C.label + 'cc'
+    ctx.fillStyle = dimmed ? '#d1d5db' : isSel ? '#111' : isHov ? '#1d1d1f' : '#4b5563'
     ctx.font = `${isHov || isSel ? '700' : '600'} ${isHov ? 10.5 : 9.5}px "JetBrains Mono", monospace`
     ctx.textAlign = 'center'
     ctx.fillText(node.label, node.x, node.y - r - 5)
@@ -723,6 +730,21 @@ onUnmounted(() => stopAnimation())
 .child-item:hover .cat-name { color: #111; }
 .child-item.active .cat-name { color: #fff; font-weight: 600; }
 
+.tag-item {
+  padding-left: 22px;
+}
+.tag-item .cat-name {
+  font-size: 0.78rem;
+  color: #8a8a8e;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+.tag-item:hover .cat-name { color: #444; }
+.tag-item.active { background: #1d1d1f; }
+.tag-item.active .cat-name { color: #fff; font-weight: 600; }
+.tag-item.active .cat-count { color: rgba(255,255,255,0.45); }
+
 /* ── Main content ────────────────────────────────────── */
 .main-content { min-width: 0; }
 
@@ -749,11 +771,6 @@ onUnmounted(() => stopAnimation())
   width: 100%;
   color: #6e6e73;
 }
-.graph-header-left {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
 .graph-label {
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.68rem;
@@ -761,23 +778,6 @@ onUnmounted(() => stopAnimation())
   color: #8a8a8e;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-}
-.graph-legend {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.68rem;
-  color: #b0b0b4;
-  font-family: 'JetBrains Mono', monospace;
-  font-weight: 500;
-  letter-spacing: 0.03em;
-}
-.legend-dot {
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  flex-shrink: 0;
 }
 .graph-body {
   position: relative;
