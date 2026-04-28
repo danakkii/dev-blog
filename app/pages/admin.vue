@@ -49,7 +49,11 @@
       <input v-model="title" class="title-input" type="text" placeholder="Post title..." />
       <div class="category-row">
         <span class="category-prefix"># category</span>
-        <input v-model="category" class="category-input" type="text" placeholder="예: Data, Backend, AI ..." />
+        <input v-model="category" class="category-input" type="text" placeholder="예: Development/Frontend, Data Science ..." />
+      </div>
+      <div class="category-row">
+        <span class="category-prefix"># tags</span>
+        <input v-model="tags" class="category-input" type="text" placeholder="쉼표로 구분: python, machine-learning, vue ..." />
       </div>
 
       <!-- 툴바 -->
@@ -131,6 +135,7 @@ const loginError = ref(false)
 const title = ref('')
 const content = ref('')
 const category = ref('')
+const tags = ref('')
 const publishing = ref(false)
 const uploading = ref(false)
 const fetchingLink = ref(false)
@@ -161,7 +166,7 @@ const login = async () => {
 const loadPosts = async () => {
   const { data } = await supabase
     .from('post')
-    .select('id, created_at, title, content, category')
+    .select('id, created_at, title, content, category, tags')
     .order('created_at', { ascending: false })
   allPosts.value = data || []
 }
@@ -180,6 +185,7 @@ const startEdit = (post) => {
   title.value = post.title
   content.value = post.content
   category.value = post.category || ''
+  tags.value = post.tags || ''
   showPosts.value = false
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
@@ -189,6 +195,7 @@ const resetEditor = () => {
   title.value = ''
   content.value = ''
   category.value = ''
+  tags.value = ''
 }
 
 // ── 삭제 ──────────────────────────────────────────────
@@ -355,10 +362,12 @@ const save = async () => {
 
   publishing.value = true
 
+  const tagsVal = tags.value.trim()
   const payload = {
     title: title.value.trim(),
     content: content.value.trim(),
-    category: category.value.trim() || null
+    category: category.value.trim() || null,
+    ...(tagsVal ? { tags: tagsVal } : {})
   }
 
   if (editingPostId.value) {

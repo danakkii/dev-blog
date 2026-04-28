@@ -72,6 +72,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import { marked } from 'marked'
+import hljs from 'highlight.js'
 
 const toHeadingId = (raw) =>
   'h-' + raw
@@ -87,6 +88,19 @@ marked.use({
   gfm: true,
   breaks: true,
   renderer: {
+    code({ text, lang }) {
+      const escHtml = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      if (lang === 'mermaid') {
+        return `<pre><code class="language-mermaid">${escHtml(text)}</code></pre>`
+      }
+      const language = lang && hljs.getLanguage(lang) ? lang : 'plaintext'
+      try {
+        const highlighted = hljs.highlight(text, { language, ignoreIllegals: true }).value
+        return `<pre><code class="language-${language} hljs">${highlighted}</code></pre>\n`
+      } catch {
+        return `<pre><code class="language-plaintext hljs">${escHtml(text)}</code></pre>\n`
+      }
+    },
     heading({ text, depth, raw }) {
       const rawText = raw.replace(/^#{1,6}\s+/, '').replace(/\s+$/, '')
       const id = toHeadingId(rawText)
@@ -124,9 +138,30 @@ const processMermaid = (html) => html.replace(
   }
 )
 
+const YT_RE = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/
+const VIMEO_RE = /(?:https?:\/\/)?(?:www\.)?vimeo\.com\/(\d+)/
+
+const processVideoEmbeds = (html) => {
+  const toEmbed = (url) => {
+    const yt = url.match(YT_RE)
+    if (yt) return `<div class="video-embed"><iframe src="https://www.youtube.com/embed/${yt[1]}" frameborder="0" allowfullscreen loading="lazy"></iframe></div>`
+    const vi = url.match(VIMEO_RE)
+    if (vi) return `<div class="video-embed"><iframe src="https://player.vimeo.com/video/${vi[1]}" frameborder="0" allowfullscreen loading="lazy"></iframe></div>`
+    return null
+  }
+  // GFM auto-links: <p><a href="URL">URL</a></p>
+  html = html.replace(/<p>\s*<a [^>]*href="([^"]+)"[^>]*>[^<]*<\/a>\s*<\/p>/g, (match, url) => toEmbed(url) ?? match)
+  // Plain text URL on its own line: <p>URL</p>
+  html = html.replace(/<p>\s*(https?:\/\/[^\s<]+)\s*<\/p>/g, (match, url) => toEmbed(url) ?? match)
+  return html
+}
+
 const parsedContent = computed(() => {
   if (!post.value?.content) return ''
-  return processMermaid(marked.parse(post.value.content))
+  let html = marked.parse(post.value.content)
+  html = processMermaid(html)
+  html = processVideoEmbeds(html)
+  return html
 })
 
 const readingTime = computed(() => {
@@ -143,7 +178,10 @@ const readingTime = computed(() => {
 const toc = computed(() => {
   if (!post.value?.content) return []
   const headings = []
+  let inCodeBlock = false
   for (const line of post.value.content.split('\n')) {
+    if (/^(`{3,}|~{3,})/.test(line)) { inCodeBlock = !inCodeBlock; continue }
+    if (inCodeBlock) continue
     const m = line.match(/^(#{1,3})\s+(.+)$/)
     if (m) {
       headings.push({
@@ -475,6 +513,12 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll))
   border-radius: 0;
   font-size: inherit;
   word-break: normal;
+}
+:deep(.markdown-body pre code.hljs) {
+  background: transparent;
+  padding: 0;
+  font-size: inherit;
+  color: inherit;
 }
 :deep(.markdown-body table) {
   width: 100%;

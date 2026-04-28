@@ -12,29 +12,103 @@
 
     <div class="page-body">
 
-      <!-- Left sidebar -->
+      <!-- Left sidebar: hierarchical categories -->
       <aside class="sidebar">
         <p class="sidebar-title">Blog</p>
         <p class="sidebar-desc">데이터와 개발에 관한 생각들을 기록합니다.</p>
-
         <div class="sidebar-divider"></div>
 
         <p class="cat-label">Categories</p>
         <ul class="cat-list">
           <li
-            v-for="cat in categories"
-            :key="cat"
-            :class="['cat-item', { active: selectedCategory === cat }]"
-            @click="selectedCategory = cat"
+            :class="['cat-item', { active: selectedCategory === 'All' && !selectedTagId }]"
+            @click="selectAll"
           >
-            <span class="cat-name">{{ cat }}</span>
-            <span class="cat-count">{{ categoryCounts[cat] ?? 0 }}</span>
+            <span class="cat-name">All</span>
+            <span class="cat-count">{{ posts?.length || 0 }}</span>
           </li>
+
+          <template v-for="[parent, data] in categoryTree" :key="parent">
+            <li
+              :class="['cat-item', 'parent-item', { active: isParentActive(parent) }]"
+              @click="selectParent(parent)"
+            >
+              <span class="cat-name">{{ parent }}</span>
+              <div class="cat-right">
+                <span class="cat-count">{{ data.totalCount }}</span>
+                <button
+                  v-if="data.children.size > 0"
+                  class="expand-btn"
+                  @click.stop="toggleParent(parent)"
+                  :aria-label="expandedParents.has(parent) ? '접기' : '펼치기'"
+                >
+                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline v-if="expandedParents.has(parent)" points="18 15 12 9 6 15"/>
+                    <polyline v-else points="6 9 12 15 18 9"/>
+                  </svg>
+                </button>
+              </div>
+            </li>
+
+            <li
+              v-for="[child, count] in data.children"
+              v-show="expandedParents.has(parent)"
+              :key="`${parent}/${child}`"
+              :class="['cat-item', 'child-item', { active: selectedCategory === `${parent}/${child}` }]"
+              @click="selectCategory(`${parent}/${child}`)"
+            >
+              <span class="cat-name">{{ child }}</span>
+              <span class="cat-count">{{ count }}</span>
+            </li>
+          </template>
         </ul>
       </aside>
 
       <!-- Main content -->
       <main class="main-content">
+
+        <!-- Tag graph -->
+        <div class="graph-section">
+          <button class="graph-header" @click="graphVisible = !graphVisible">
+            <div class="graph-header-left">
+              <span class="graph-label">Tag Space</span>
+              <span class="graph-legend">
+                <span class="legend-dot" style="background:#2563eb"></span>category
+                <span class="legend-dot" style="background:#7c3aed"></span>tag
+              </span>
+            </div>
+            <svg
+              width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round"
+              :style="{ transition: 'transform 0.2s', transform: graphVisible ? 'rotate(0deg)' : 'rotate(180deg)' }"
+            >
+              <polyline points="18 15 12 9 6 15"/>
+            </svg>
+          </button>
+
+          <div v-show="graphVisible" class="graph-body">
+            <div v-if="!posts || posts.length === 0" class="graph-empty">
+              포스트가 없습니다
+            </div>
+            <canvas
+              v-else
+              ref="graphCanvas"
+              class="tag-graph"
+              width="700"
+              height="240"
+              @mousemove="onGraphMouseMove"
+              @click="onGraphClick"
+              @mouseleave="onGraphMouseLeave"
+            />
+            <Transition name="badge-fade">
+              <div v-if="selectedTagId" class="graph-tag-badge">
+                <span class="badge-dot"></span>
+                {{ selectedTagId }}
+                <button class="badge-clear" @click.stop="clearTagFilter">×</button>
+              </div>
+            </Transition>
+          </div>
+        </div>
 
         <!-- Search -->
         <div class="search-wrap" :class="{ focused: searchFocused }">
@@ -71,7 +145,14 @@
             >
               <div class="post-item-top">
                 <time class="post-date">{{ formatDate(post.created_at) }}</time>
-                <span v-if="post.category" class="post-category">{{ post.category }}</span>
+                <span v-if="post.category" class="post-category">{{ displayCategory(post.category) }}</span>
+                <template v-if="post.tags">
+                  <span
+                    v-for="tag in parseTagList(post.tags)"
+                    :key="tag"
+                    class="post-tag"
+                  ># {{ tag }}</span>
+                </template>
               </div>
               <h3 class="post-title" v-html="highlight(post.title)"></h3>
               <p class="post-excerpt" v-html="highlight(getPreviewText(post.content))"></p>
@@ -90,52 +171,111 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 
 const supabase = useSupabaseClient()
 const selectedCategory = ref('All')
+const selectedTagId = ref(null)
 const searchQuery = ref('')
 const searchFocused = ref(false)
+const graphVisible = ref(true)
+const expandedParents = ref(new Set())
 
+// ── Data ────────────────────────────────────────────────────────────
 const { data: posts, pending } = await useAsyncData('blog-posts', async () => {
   const { data, error } = await supabase
     .from('post')
-    .select('id, created_at, title, content, category')
+    .select('id, created_at, title, content, category, tags')
     .order('created_at', { ascending: false })
   if (error) {
     const { data: fallback } = await supabase
       .from('post')
-      .select('id, created_at, title, content')
+      .select('id, created_at, title, content, category')
       .order('created_at', { ascending: false })
     return fallback || []
   }
   return data || []
 })
 
-const categories = computed(() => {
-  const cats = new Set()
-  posts.value?.forEach(p => { if (p.category) cats.add(p.category) })
-  if (!cats.size) return ['All']
-  return ['All', ...Array.from(cats).sort()]
+// ── Category tree ────────────────────────────────────────────────────
+const categoryTree = computed(() => {
+  const tree = new Map()
+  posts.value?.forEach(post => {
+    if (!post.category) return
+    const parts = post.category.split('/').map(s => s.trim())
+    const parent = parts[0]
+    const child = parts[1]
+    if (!tree.has(parent)) tree.set(parent, { totalCount: 0, children: new Map() })
+    tree.get(parent).totalCount++
+    if (child) {
+      const c = tree.get(parent).children
+      c.set(child, (c.get(child) || 0) + 1)
+    }
+  })
+  return tree
 })
 
-const categoryCounts = computed(() => {
-  const counts = { All: (posts.value || []).length }
-  posts.value?.forEach(p => {
-    if (p.category) counts[p.category] = (counts[p.category] || 0) + 1
-  })
-  return counts
-})
+watch(categoryTree, tree => {
+  const expanded = new Set(expandedParents.value)
+  for (const [parent, data] of tree) {
+    if (data.children.size > 0) expanded.add(parent)
+  }
+  expandedParents.value = expanded
+}, { immediate: true })
+
+// ── Category / tag actions ───────────────────────────────────────────
+const selectAll = () => { selectedCategory.value = 'All'; selectedTagId.value = null }
+const selectParent = (p) => { selectedCategory.value = p; selectedTagId.value = null }
+const selectCategory = (cat) => { selectedCategory.value = cat; selectedTagId.value = null }
+const clearTagFilter = () => { selectedTagId.value = null }
+
+const toggleParent = (parent) => {
+  const s = new Set(expandedParents.value)
+  s.has(parent) ? s.delete(parent) : s.add(parent)
+  expandedParents.value = s
+}
+
+const isParentActive = (parent) =>
+  selectedCategory.value === parent || selectedCategory.value.startsWith(parent + '/')
+
+const displayCategory = (cat) => {
+  const parts = cat.split('/')
+  return parts[parts.length - 1].trim()
+}
+
+const parseTagList = (tags) =>
+  tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : []
+
+// ── Filtering ────────────────────────────────────────────────────────
+const getPostTagSet = (post) => {
+  const tags = new Set()
+  if (post.category) {
+    post.category.split('/').forEach(p => tags.add(p.trim()))
+    tags.add(post.category.trim())
+  }
+  if (post.tags) parseTagList(post.tags).forEach(t => tags.add(t))
+  return tags
+}
 
 const isFiltering = computed(() =>
-  searchQuery.value.trim() !== '' || selectedCategory.value !== 'All'
+  searchQuery.value.trim() !== '' || selectedCategory.value !== 'All' || selectedTagId.value !== null
 )
 
 const filteredPosts = computed(() => {
   let result = posts.value || []
-  if (selectedCategory.value !== 'All') {
-    result = result.filter(p => p.category === selectedCategory.value)
+
+  if (selectedTagId.value) {
+    result = result.filter(p => getPostTagSet(p).has(selectedTagId.value))
+  } else if (selectedCategory.value !== 'All') {
+    const sel = selectedCategory.value
+    const isChild = sel.includes('/')
+    result = result.filter(p => {
+      if (!p.category) return false
+      if (isChild) return p.category.trim() === sel
+      return p.category.split('/')[0].trim() === sel
+    })
   }
+
   const q = searchQuery.value.trim().toLowerCase()
   if (q) {
     result = result.filter(p =>
@@ -176,6 +316,243 @@ const getPreviewText = (text) => {
     .trim()
     .slice(0, 180)
 }
+
+// ── Graph simulation ─────────────────────────────────────────────────
+const GRAPH_W = 700
+const GRAPH_H = 240
+const graphCanvas = ref(null)
+
+let simNodes = []
+let simEdges = []
+let hoveredNodeId = null
+let animAlpha = 1.0
+let animId = null
+
+function buildSimulation(postsData) {
+  const tagCountMap = new Map()
+  const tagTypeMap = new Map()  // 'category' | 'tag'
+  const postTagMap = new Map()
+
+  for (const post of postsData) {
+    const postTags = []
+    if (post.category) {
+      post.category.split('/').forEach(p => {
+        const t = p.trim()
+        if (t) { postTags.push(t); if (!tagTypeMap.has(t)) tagTypeMap.set(t, 'category') }
+      })
+    }
+    if (post.tags) {
+      parseTagList(post.tags).forEach(t => { postTags.push(t); tagTypeMap.set(t, 'tag') })
+    }
+    const uniqueTags = [...new Set(postTags)]
+    postTagMap.set(post.id, uniqueTags)
+    uniqueTags.forEach(t => tagCountMap.set(t, (tagCountMap.get(t) || 0) + 1))
+  }
+
+  simNodes = [
+    ...Array.from(tagCountMap.entries()).map(([id, count]) => ({
+      id,
+      type: tagTypeMap.get(id) === 'tag' ? 'tag' : 'category',
+      label: id, count,
+      x: GRAPH_W / 2 + (Math.random() - 0.5) * 180,
+      y: GRAPH_H / 2 + (Math.random() - 0.5) * 90,
+      vx: 0, vy: 0
+    })),
+    ...postsData.map(post => ({
+      id: `post_${post.id}`, type: 'post', label: '',
+      x: GRAPH_W / 2 + (Math.random() - 0.5) * 220,
+      y: GRAPH_H / 2 + (Math.random() - 0.5) * 110,
+      vx: 0, vy: 0, count: 1
+    }))
+  ]
+
+  simEdges = postsData.flatMap(post =>
+    (postTagMap.get(post.id) || []).map(tagId => ({ s: `post_${post.id}`, t: tagId }))
+  )
+
+  animAlpha = 1.0
+}
+
+function tickSim() {
+  const cx = GRAPH_W / 2, cy = GRAPH_H / 2, margin = 30
+
+  for (let i = 0; i < simNodes.length; i++) {
+    for (let j = i + 1; j < simNodes.length; j++) {
+      const ni = simNodes[i], nj = simNodes[j]
+      const dx = ni.x - nj.x, dy = ni.y - nj.y
+      const dist2 = dx * dx + dy * dy || 0.01
+      const dist = Math.sqrt(dist2)
+      const isLabelI = ni.type !== 'post', isLabelJ = nj.type !== 'post'
+      const rep = (isLabelI && isLabelJ ? 3200 : ni.type === 'post' && nj.type === 'post' ? 500 : 1400) / dist2
+      const fx = (dx / dist) * rep, fy = (dy / dist) * rep
+      ni.vx += fx; ni.vy += fy; nj.vx -= fx; nj.vy -= fy
+    }
+  }
+
+  const nodeMap = new Map(simNodes.map(n => [n.id, n]))
+  for (const { s, t } of simEdges) {
+    const sn = nodeMap.get(s), tn = nodeMap.get(t)
+    if (!sn || !tn) continue
+    const dx = tn.x - sn.x, dy = tn.y - sn.y
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1
+    const sf = (dist - 65) * 0.038
+    const fx = (dx / dist) * sf, fy = (dy / dist) * sf
+    sn.vx += fx; sn.vy += fy; tn.vx -= fx; tn.vy -= fy
+  }
+
+  for (const node of simNodes) {
+    node.vx += (cx - node.x) * 0.013
+    node.vy += (cy - node.y) * 0.013
+    node.vx *= 0.87; node.vy *= 0.87
+    node.x = Math.max(margin, Math.min(GRAPH_W - margin, node.x + node.vx * animAlpha))
+    node.y = Math.max(margin, Math.min(GRAPH_H - margin, node.y + node.vy * animAlpha))
+  }
+
+  animAlpha = Math.max(0, animAlpha * 0.992)
+}
+
+// 색상 팔레트: category=blue, tag=purple
+const COLORS = {
+  category: { fill: '#2563eb', stroke: '#1d4ed8', label: '#1e40af', selFill: '#1d4ed8', selStroke: '#3b82f6', hovFill: '#3b82f6', hovStroke: '#60a5fa', dimFill: '#dbeafe', dimStroke: '#bfdbfe', glow: 'rgba(37,99,235,0.15)' },
+  tag:      { fill: '#7c3aed', stroke: '#6d28d9', label: '#5b21b6', selFill: '#6d28d9', selStroke: '#8b5cf6', hovFill: '#8b5cf6', hovStroke: '#a78bfa', dimFill: '#ede9fe', dimStroke: '#ddd6fe', glow: 'rgba(124,58,237,0.15)' }
+}
+
+function renderGraph() {
+  const canvas = graphCanvas.value
+  if (!canvas) return
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+
+  ctx.clearRect(0, 0, GRAPH_W, GRAPH_H)
+  ctx.fillStyle = '#fafaf8'
+  ctx.fillRect(0, 0, GRAPH_W, GRAPH_H)
+
+  if (simNodes.length === 0) return
+
+  const nodeMap = new Map(simNodes.map(n => [n.id, n]))
+
+  const connectedIds = new Set()
+  const hotEdges = new Set()
+  if (hoveredNodeId) {
+    simEdges.forEach((e, i) => {
+      if (e.s === hoveredNodeId || e.t === hoveredNodeId) {
+        connectedIds.add(e.s); connectedIds.add(e.t); hotEdges.add(i)
+      }
+    })
+  }
+
+  // Draw edges
+  simEdges.forEach((edge, i) => {
+    const s = nodeMap.get(edge.s), t = nodeMap.get(edge.t)
+    if (!s || !t) return
+    const hot = hotEdges.has(i)
+    const targetNode = nodeMap.get(edge.t)
+    const selEdge = selectedTagId.value && (edge.t === selectedTagId.value)
+    const selColor = targetNode?.type === 'tag' ? 'rgba(124,58,237,0.45)' : 'rgba(37,99,235,0.45)'
+    ctx.strokeStyle = selEdge ? selColor : hot ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.09)'
+    ctx.lineWidth = hot || selEdge ? 1.4 : 0.7
+    ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(t.x, t.y); ctx.stroke()
+  })
+
+  // Draw post dots
+  for (const node of simNodes) {
+    if (node.type !== 'post') continue
+    const hot = hoveredNodeId ? connectedIds.has(node.id) : false
+    const selPost = selectedTagId.value && simEdges.some(e => e.s === node.id && e.t === selectedTagId.value)
+    const dimmed = hoveredNodeId && !hot
+
+    ctx.beginPath()
+    ctx.arc(node.x, node.y, dimmed ? 1.8 : 2.5, 0, Math.PI * 2)
+    ctx.fillStyle = selPost ? '#2563eb' : dimmed ? '#d1d5db' : hot ? '#6b7280' : '#9ca3af'
+    ctx.fill()
+  }
+
+  // Draw category/tag nodes
+  for (const node of simNodes) {
+    if (node.type === 'post') continue
+    const C = COLORS[node.type] || COLORS.category
+    const r = 7 + Math.log(node.count + 1) * 4.5
+    const isHov = hoveredNodeId === node.id
+    const isSel = selectedTagId.value === node.id
+    const dimmed = hoveredNodeId && !connectedIds.has(node.id) && !isHov
+
+    // Glow
+    if (isHov || isSel) {
+      const grd = ctx.createRadialGradient(node.x, node.y, r * 0.4, node.x, node.y, r + 14)
+      grd.addColorStop(0, C.glow.replace('0.15', isSel ? '0.25' : '0.18'))
+      grd.addColorStop(1, 'rgba(255,255,255,0)')
+      ctx.beginPath(); ctx.arc(node.x, node.y, r + 14, 0, Math.PI * 2)
+      ctx.fillStyle = grd; ctx.fill()
+    }
+
+    ctx.beginPath(); ctx.arc(node.x, node.y, r, 0, Math.PI * 2)
+    ctx.fillStyle = isSel ? C.selFill : isHov ? C.hovFill : dimmed ? C.dimFill : C.fill
+    ctx.fill()
+    ctx.strokeStyle = isSel ? C.selStroke : isHov ? C.hovStroke : dimmed ? C.dimStroke : C.stroke
+    ctx.lineWidth = isSel ? 2 : 1.5; ctx.stroke()
+
+    // Label
+    ctx.fillStyle = dimmed ? C.dimStroke : isSel || isHov ? C.label : C.label + 'cc'
+    ctx.font = `${isHov || isSel ? '700' : '600'} ${isHov ? 10.5 : 9.5}px "JetBrains Mono", monospace`
+    ctx.textAlign = 'center'
+    ctx.fillText(node.label, node.x, node.y - r - 5)
+  }
+}
+
+function animateGraph() {
+  if (animAlpha > 0.004) tickSim()
+  renderGraph()
+  animId = requestAnimationFrame(animateGraph)
+}
+
+function stopAnimation() {
+  if (animId) { cancelAnimationFrame(animId); animId = null }
+}
+
+function startGraph(postsData) {
+  stopAnimation()
+  buildSimulation(postsData)
+  for (let i = 0; i < 120; i++) tickSim()
+  animateGraph()
+}
+
+function onGraphMouseMove(e) {
+  const canvas = graphCanvas.value
+  if (!canvas) return
+  const rect = canvas.getBoundingClientRect()
+  const mx = (e.clientX - rect.left) * (GRAPH_W / rect.width)
+  const my = (e.clientY - rect.top) * (GRAPH_H / rect.height)
+
+  hoveredNodeId = null
+  for (const node of simNodes) {
+    if (node.type === 'post') continue
+    const r = 7 + Math.log(node.count + 1) * 4.5 + 5
+    const dx = mx - node.x, dy = my - node.y
+    if (dx * dx + dy * dy <= r * r) { hoveredNodeId = node.id; break }
+  }
+  canvas.style.cursor = hoveredNodeId ? 'pointer' : 'default'
+}
+
+function onGraphClick() {
+  if (!hoveredNodeId) return
+  if (selectedTagId.value === hoveredNodeId) {
+    selectedTagId.value = null
+  } else {
+    selectedTagId.value = hoveredNodeId
+    selectedCategory.value = 'All'
+  }
+}
+
+function onGraphMouseLeave() { hoveredNodeId = null }
+
+// ── Lifecycle ────────────────────────────────────────────────────────
+onMounted(() => {
+  watch(posts, p => {
+    if (p && p.length > 0) startGraph(p)
+  }, { immediate: true })
+})
+
+onUnmounted(() => stopAnimation())
 </script>
 
 <style scoped>
@@ -233,8 +610,8 @@ const getPreviewText = (text) => {
 /* Page layout */
 .page-body {
   display: grid;
-  grid-template-columns: 190px 1fr;
-  gap: 48px;
+  grid-template-columns: 200px 1fr;
+  gap: 44px;
   max-width: 980px;
   margin: 0 auto;
   padding: 56px 24px 80px;
@@ -242,7 +619,7 @@ const getPreviewText = (text) => {
   min-width: 0;
 }
 
-/* Sidebar */
+/* ── Sidebar ─────────────────────────────────────────── */
 .sidebar {
   position: sticky;
   top: 72px;
@@ -280,7 +657,7 @@ const getPreviewText = (text) => {
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 .cat-item {
   display: flex;
@@ -292,34 +669,177 @@ const getPreviewText = (text) => {
   transition: background 0.12s, color 0.12s;
   user-select: none;
 }
-.cat-item:hover {
-  background: #f0f0ee;
-}
-.cat-item.active {
-  background: #1d1d1f;
-}
+.cat-item:hover { background: #f0f0ee; }
+.cat-item.active { background: #1d1d1f; }
 .cat-item.active .cat-name { color: #fff; font-weight: 600; }
-.cat-item.active .cat-count { color: rgba(255,255,255,0.5); }
+.cat-item.active .cat-count { color: rgba(255,255,255,0.45); }
+.cat-item.active .expand-btn { color: rgba(255,255,255,0.55); }
+.cat-item.active .expand-btn:hover { color: #fff; }
+
 .cat-name {
   font-size: 0.875rem;
   color: #3a3a3e;
   font-weight: 500;
   transition: color 0.12s;
 }
+.cat-item:hover .cat-name { color: #111; }
 .cat-count {
   font-size: 0.72rem;
   color: #b0b0b4;
   font-family: 'JetBrains Mono', monospace;
   font-weight: 500;
-  min-width: 18px;
+  min-width: 16px;
   text-align: right;
+  flex-shrink: 0;
 }
-.cat-item:hover .cat-name { color: #111; }
 
-/* Main content */
+/* Hierarchical: parent/child */
+.cat-right {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.expand-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 1px 2px;
+  color: #b0b0b4;
+  display: flex;
+  align-items: center;
+  line-height: 1;
+  transition: color 0.12s;
+  flex-shrink: 0;
+}
+.expand-btn:hover { color: #444; }
+
+.child-item {
+  padding-left: 22px;
+}
+.child-item .cat-name {
+  font-size: 0.82rem;
+  color: #5a5a60;
+}
+.child-item:hover .cat-name { color: #111; }
+.child-item.active .cat-name { color: #fff; font-weight: 600; }
+
+/* ── Main content ────────────────────────────────────── */
 .main-content { min-width: 0; }
 
-/* Search */
+/* ── Tag graph ───────────────────────────────────────── */
+.graph-section {
+  margin-bottom: 18px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #e8e8e6;
+  background: #fafaf8;
+}
+.graph-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: transparent;
+  border-bottom: 1px solid #e8e8e6;
+  cursor: pointer;
+  user-select: none;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  width: 100%;
+  color: #6e6e73;
+}
+.graph-header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.graph-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #8a8a8e;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.graph-legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.68rem;
+  color: #b0b0b4;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+}
+.legend-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.graph-body {
+  position: relative;
+  background: #fafaf8;
+}
+.graph-empty {
+  height: 240px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.82rem;
+  color: #c0c0c8;
+  font-family: 'JetBrains Mono', monospace;
+}
+.tag-graph {
+  display: block;
+  width: 100%;
+  height: 240px;
+  cursor: default;
+}
+.graph-tag-badge {
+  position: absolute;
+  bottom: 10px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(37, 99, 235, 0.08);
+  border: 1px solid rgba(37, 99, 235, 0.2);
+  border-radius: 100px;
+  padding: 4px 10px 4px 8px;
+  font-size: 0.72rem;
+  font-family: 'JetBrains Mono', monospace;
+  color: #2563eb;
+  font-weight: 600;
+}
+.badge-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #2563eb;
+  flex-shrink: 0;
+}
+.badge-clear {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: rgba(37, 99, 235, 0.5);
+  font-size: 0.95rem;
+  padding: 0;
+  line-height: 1;
+  margin-left: 2px;
+  transition: color 0.1s;
+}
+.badge-clear:hover { color: #2563eb; }
+
+.badge-fade-enter-active,
+.badge-fade-leave-active { transition: opacity 0.2s; }
+.badge-fade-enter-from,
+.badge-fade-leave-to { opacity: 0; }
+
+/* ── Search ──────────────────────────────────────────── */
 .search-wrap {
   display: flex;
   align-items: center;
@@ -370,7 +890,7 @@ const getPreviewText = (text) => {
 .loading { font-size: 0.9rem; color: #8a8a8e; padding: 24px 0; }
 .empty { font-size: 0.9rem; color: #8a8a8e; }
 
-/* Post list */
+/* ── Post list ───────────────────────────────────────── */
 .post-list { display: flex; flex-direction: column; gap: 12px; }
 .post-item {
   display: block;
@@ -404,7 +924,7 @@ const getPreviewText = (text) => {
 .post-item-top {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   margin-bottom: 8px;
   flex-wrap: wrap;
 }
@@ -424,6 +944,13 @@ const getPreviewText = (text) => {
   border-radius: 4px;
   padding: 2px 8px;
   letter-spacing: 0.04em;
+}
+.post-tag {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: #6e6e73;
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 0.02em;
 }
 .post-title {
   font-size: 1.05rem;
@@ -462,7 +989,7 @@ const getPreviewText = (text) => {
   padding: 0 1px;
 }
 
-/* Footer */
+/* ── Footer ──────────────────────────────────────────── */
 .footer {
   max-width: 980px;
   margin: 0 auto;
@@ -472,7 +999,7 @@ const getPreviewText = (text) => {
   color: #aaa;
 }
 
-/* Tablet: sidebar to top */
+/* ── Tablet ──────────────────────────────────────────── */
 @media (max-width: 768px) {
   .page-body {
     grid-template-columns: 1fr;
@@ -505,6 +1032,8 @@ const getPreviewText = (text) => {
     border-color: #1d1d1f;
   }
   .cat-count { display: none; }
+  .expand-btn { display: none; }
+  .child-item { padding-left: 12px; }
   .nav-inner { max-width: 100%; }
   .footer { max-width: 100%; }
 }
