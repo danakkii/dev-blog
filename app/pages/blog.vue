@@ -613,7 +613,9 @@ onUnmounted(() => stopAnimation())
 .cat-item.active { background: #1d1d1f; }
 .cat-item.active:hover { background: #1d1d1f; }
 .cat-item.active .cat-name { color: #fff; font-weight: 600; }
+.cat-item.active:hover .cat-name { color: #fff; }
 .cat-item.active .cat-count { color: rgba(255,255,255,0.45); }
+.cat-item.active:hover .cat-count { color: rgba(255,255,255,0.45); }
 .cat-item.active .expand-btn { color: rgba(255,255,255,0.55); }
 .cat-item.active .expand-btn:hover { color: #fff; }
 
