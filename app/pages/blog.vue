@@ -182,7 +182,7 @@ const categoryTree = computed(() => {
       })
     }
   })
-  return tree
+  return new Map([...tree.entries()].sort((a, b) => a[0].localeCompare(b[0])))
 })
 
 // ── Category / tag actions ───────────────────────────────────────────
@@ -611,6 +611,7 @@ onUnmounted(() => stopAnimation())
 }
 .cat-item:hover { background: #f0f0ee; }
 .cat-item.active { background: #1d1d1f; }
+.cat-item.active:hover { background: #1d1d1f; }
 .cat-item.active .cat-name { color: #fff; font-weight: 600; }
 .cat-item.active .cat-count { color: rgba(255,255,255,0.45); }
 .cat-item.active .expand-btn { color: rgba(255,255,255,0.55); }
