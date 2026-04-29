@@ -30,48 +30,11 @@
 
           <template v-for="[parent, data] in categoryTree" :key="parent">
             <li
-              :class="['cat-item', 'parent-item', { active: isParentActive(parent) }]"
+              :class="['cat-item', 'parent-item', { active: selectedCategory === parent }]"
               @click="selectParent(parent)"
             >
               <span class="cat-name">{{ parent }}</span>
-              <div class="cat-right">
-                <span class="cat-count">{{ data.totalCount }}</span>
-                <button
-                  v-if="data.children.size > 0 || data.tags.size > 0"
-                  class="expand-btn"
-                  @click.stop="toggleParent(parent)"
-                  :aria-label="expandedParents.has(parent) ? '접기' : '펼치기'"
-                >
-                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline v-if="expandedParents.has(parent)" points="18 15 12 9 6 15"/>
-                    <polyline v-else points="6 9 12 15 18 9"/>
-                  </svg>
-                </button>
-              </div>
-            </li>
-
-            <!-- 서브카테고리 -->
-            <li
-              v-for="[child, count] in data.children"
-              v-show="expandedParents.has(parent)"
-              :key="`${parent}/${child}`"
-              :class="['cat-item', 'child-item', { active: selectedCategory === `${parent}/${child}` }]"
-              @click="selectCategory(`${parent}/${child}`)"
-            >
-              <span class="cat-name">{{ child }}</span>
-              <span class="cat-count">{{ count }}</span>
-            </li>
-
-            <!-- 태그 목록 -->
-            <li
-              v-for="[tag, count] in data.tags"
-              v-show="expandedParents.has(parent)"
-              :key="`tag_${parent}_${tag}`"
-              :class="['cat-item', 'tag-item', { active: selectedTagId === tag }]"
-              @click="selectTagFromSidebar(tag)"
-            >
-              <span class="cat-name"># {{ tag }}</span>
-              <span class="cat-count">{{ count }}</span>
+              <span class="cat-count">{{ data.totalCount }}</span>
             </li>
           </template>
         </ul>
@@ -153,13 +116,6 @@
               <div class="post-item-top">
                 <time class="post-date">{{ formatDate(post.created_at) }}</time>
                 <span v-if="post.category" class="post-category">{{ displayCategory(post.category) }}</span>
-                <template v-if="post.tags">
-                  <span
-                    v-for="tag in parseTagList(post.tags)"
-                    :key="tag"
-                    class="post-tag"
-                  ># {{ tag }}</span>
-                </template>
               </div>
               <h3 class="post-title" v-html="highlight(post.title)"></h3>
               <p class="post-excerpt" v-html="highlight(getPreviewText(post.content))"></p>
@@ -186,8 +142,6 @@ const selectedTagId = ref(null)
 const searchQuery = ref('')
 const searchFocused = ref(false)
 const graphVisible = ref(true)
-const expandedParents = ref(new Set())
-
 // ── Data ────────────────────────────────────────────────────────────
 const { data: posts, pending } = await useAsyncData('blog-posts', async () => {
   const { data, error } = await supabase
@@ -231,32 +185,11 @@ const categoryTree = computed(() => {
   return tree
 })
 
-watch(categoryTree, tree => {
-  const expanded = new Set(expandedParents.value)
-  for (const [parent, data] of tree) {
-    if (data.children.size > 0 || data.tags.size > 0) expanded.add(parent)
-  }
-  expandedParents.value = expanded
-}, { immediate: true })
-
 // ── Category / tag actions ───────────────────────────────────────────
 const selectAll = () => { selectedCategory.value = 'All'; selectedTagId.value = null }
 const selectParent = (p) => { selectedCategory.value = p; selectedTagId.value = null }
 const selectCategory = (cat) => { selectedCategory.value = cat; selectedTagId.value = null }
 const clearTagFilter = () => { selectedTagId.value = null }
-const selectTagFromSidebar = (tag) => {
-  selectedTagId.value = selectedTagId.value === tag ? null : tag
-  if (selectedTagId.value) selectedCategory.value = 'All'
-}
-
-const toggleParent = (parent) => {
-  const s = new Set(expandedParents.value)
-  s.has(parent) ? s.delete(parent) : s.add(parent)
-  expandedParents.value = s
-}
-
-const isParentActive = (parent) =>
-  selectedCategory.value === parent || selectedCategory.value.startsWith(parent + '/')
 
 const displayCategory = (cat) => {
   const parts = cat.split('/')

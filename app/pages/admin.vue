@@ -22,6 +22,7 @@
           <span v-if="editingPostId" class="nav-mode">· Editing</span>
         </div>
         <div class="nav-actions">
+          <span v-if="draftSavedAt" class="draft-saved">임시 저장 {{ draftSavedAt }}</span>
           <button v-if="editingPostId" class="btn-new" @click="resetEditor">+ New</button>
           <button class="btn-publish" :disabled="publishing" @click="save">
             {{ publishing ? 'Saving...' : editingPostId ? 'Update →' : 'Publish →' }}
@@ -145,6 +146,51 @@ const editingPostId = ref(null)
 const allPosts = ref([])
 const showPosts = ref(false)
 
+// ── 임시 저장 ──────────────────────────────────────────
+const DRAFT_KEY = 'admin-draft'
+const draftSavedAt = ref('')
+let draftTimer = null
+
+const saveDraft = () => {
+  if (!title.value && !content.value) return
+  localStorage.setItem(DRAFT_KEY, JSON.stringify({
+    title: title.value,
+    content: content.value,
+    category: category.value,
+    tags: tags.value,
+    editingPostId: editingPostId.value,
+    savedAt: new Date().toISOString()
+  }))
+  const now = new Date()
+  draftSavedAt.value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+}
+
+const clearDraft = () => {
+  localStorage.removeItem(DRAFT_KEY)
+  draftSavedAt.value = ''
+}
+
+const checkDraft = () => {
+  const saved = localStorage.getItem(DRAFT_KEY)
+  if (!saved) return
+  try {
+    const draft = JSON.parse(saved)
+    if (!draft.title && !draft.content) { clearDraft(); return }
+    const when = new Date(draft.savedAt).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+    if (confirm(`임시 저장된 글이 있습니다 (${when}). 불러올까요?`)) {
+      title.value = draft.title || ''
+      content.value = draft.content || ''
+      category.value = draft.category || ''
+      tags.value = draft.tags || ''
+      editingPostId.value = draft.editingPostId || null
+    } else {
+      clearDraft()
+    }
+  } catch {
+    clearDraft()
+  }
+}
+
 const textareaEl = ref(null)
 const imageInputEl = ref(null)
 const previewBodyEl = ref(null)
@@ -156,6 +202,7 @@ const login = async () => {
     authenticated.value = true
     loginError.value = false
     await loadPosts()
+    checkDraft()
   } else {
     loginError.value = true
     password.value = ''
@@ -196,6 +243,7 @@ const resetEditor = () => {
   content.value = ''
   category.value = ''
   tags.value = ''
+  clearDraft()
 }
 
 // ── 삭제 ──────────────────────────────────────────────
@@ -233,6 +281,12 @@ const renderMermaid = async () => {
 }
 
 watch(parsedPreview, async () => { await nextTick(); await renderMermaid() })
+
+watch([title, content, category, tags], () => {
+  if (!authenticated.value) return
+  clearTimeout(draftTimer)
+  draftTimer = setTimeout(saveDraft, 2000)
+})
 
 // ── 토스트 ─────────────────────────────────────────────
 const showToast = (msg) => {
@@ -387,6 +441,7 @@ const save = async () => {
     showToast('✓ 발행되었습니다!')
   }
 
+  clearDraft()
   await loadPosts()
   resetEditor()
 }
@@ -434,6 +489,7 @@ const save = async () => {
 .nav-actions { display: flex; align-items: center; gap: 8px; }
 .btn-new { background: transparent; border: 1px solid #e0e0e0; border-radius: 7px; padding: 7px 14px; font-size: 0.82rem; font-weight: 600; font-family: inherit; color: #4a4a4e; cursor: pointer; transition: all 0.15s; }
 .btn-new:hover { border-color: #aaa; color: #1d1d1f; }
+.draft-saved { font-size: 0.75rem; color: #8a8a8e; font-family: 'JetBrains Mono', monospace; white-space: nowrap; }
 .btn-publish { background: #1d1d1f; color: #fff; border: none; border-radius: 8px; padding: 9px 20px; font-size: 0.88rem; font-weight: 700; font-family: inherit; cursor: pointer; transition: background 0.2s, opacity 0.2s; white-space: nowrap; }
 .btn-publish:hover { background: #0066cc; }
 .btn-publish:disabled { opacity: 0.5; cursor: not-allowed; }
