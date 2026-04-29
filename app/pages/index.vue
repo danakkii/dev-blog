@@ -145,6 +145,14 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 
+useSeoMeta({
+  title: 'Dana Kim — Data Analytics Engineer',
+  description: 'Building end-to-end data systems — from ingestion pipelines to real-time APIs and LLM-powered automation.',
+  ogTitle: 'Dana Kim — Data Analytics Engineer',
+  ogDescription: 'Building end-to-end data systems — from ingestion pipelines to real-time APIs and LLM-powered automation.',
+  ogUrl: 'https://dana-kim.vercel.app',
+})
+
 const supabase = useSupabaseClient()
 
 const { data: latestPosts, pending } = await useAsyncData('latest-posts', async () => {

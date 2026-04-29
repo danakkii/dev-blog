@@ -22,6 +22,16 @@ npm run preview
 
 ## Release Notes
 
+### v0.4.0 — 2026-04-29
+
+#### SEO / Google Search
+- **Google Search Console 인증**: `nuxt.config.ts` app.head에 `google-site-verification` 메타태그 추가
+- **Sitemap 자동 생성**: `@nuxtjs/sitemap` 모듈 추가, Supabase 포스트 동적 URL 포함 (`/api/__sitemap__/urls`)
+- **robots.txt 업데이트**: Sitemap 경로(`/sitemap.xml`) 추가
+- **SEO 메타태그**: 홈 페이지(`index.vue`)에 `useSeoMeta()` 적용 — title, description, og 태그
+
+---
+
 ### v0.3.0 — 2026-04-27
 
 #### New Features
