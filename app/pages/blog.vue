@@ -113,13 +113,18 @@
               :to="`/posts/${post.id}`"
               class="post-item"
             >
-              <div class="post-item-top">
-                <time class="post-date">{{ formatDate(post.created_at) }}</time>
-                <span v-if="post.category" class="post-category">{{ displayCategory(post.category) }}</span>
+              <div class="post-item-body">
+                <div class="post-item-top">
+                  <time class="post-date">{{ formatDate(post.created_at) }}</time>
+                  <span v-if="post.category" class="post-category">{{ displayCategory(post.category) }}</span>
+                </div>
+                <h3 class="post-title" v-html="highlight(post.title)"></h3>
+                <p class="post-excerpt" v-html="highlight(getPreviewText(post.content))"></p>
+                <span class="post-arrow">Read more →</span>
               </div>
-              <h3 class="post-title" v-html="highlight(post.title)"></h3>
-              <p class="post-excerpt" v-html="highlight(getPreviewText(post.content))"></p>
-              <span class="post-arrow">Read more →</span>
+              <div v-if="getThumbnailImage(post.content)" class="post-thumbnail">
+                <img :src="getThumbnailImage(post.content)" :alt="post.title" loading="lazy" />
+              </div>
             </NuxtLink>
           </div>
         </div>
@@ -251,6 +256,12 @@ const formatDate = (dateString) => {
   if (!dateString) return ''
   const date = new Date(dateString)
   return `${date.getFullYear()}. ${String(date.getMonth() + 1).padStart(2, '0')}. ${String(date.getDate()).padStart(2, '0')}.`
+}
+
+const getThumbnailImage = (content) => {
+  if (!content) return null
+  const match = content.match(/!\[.*?\]\((.*?)\)/)
+  return match ? match[1] : null
 }
 
 const getPreviewText = (text) => {
@@ -829,7 +840,9 @@ onUnmounted(() => stopAnimation())
 /* ── Post list ───────────────────────────────────────── */
 .post-list { display: flex; flex-direction: column; gap: 12px; }
 .post-item {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 20px;
   text-decoration: none;
   color: inherit;
   padding: 22px 24px;
@@ -840,6 +853,26 @@ onUnmounted(() => stopAnimation())
   transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
   overflow: hidden;
 }
+.post-item-body {
+  flex: 1;
+  min-width: 0;
+}
+.post-thumbnail {
+  flex-shrink: 0;
+  width: 96px;
+  height: 72px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f0f0ee;
+}
+.post-thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.2s ease;
+}
+.post-item:hover .post-thumbnail img { transform: scale(1.05); }
 .post-item::before {
   content: '';
   position: absolute;
@@ -972,5 +1005,6 @@ onUnmounted(() => stopAnimation())
   .child-item { padding-left: 12px; }
   .nav-inner { max-width: 100%; }
   .footer { max-width: 100%; }
+  .post-thumbnail { width: 72px; height: 56px; }
 }
 </style>
