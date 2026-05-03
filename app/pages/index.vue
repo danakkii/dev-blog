@@ -315,20 +315,24 @@ onMounted(async () => {
   font-size: 0.97rem;
   color: #3a3a3e;
   line-height: 1.85;
-  margin: 0 0 14px 0;
+  margin: 0;
   max-width: 600px;
 }
 .about-bio-ko {
   font-size: 0.88rem;
   color: #8a8a8e;
   font-style: italic;
-  margin: 0 0 28px 0;
+  margin: 0;
+}
+.about-bio + .about-bio-ko {
+  margin-top: 16px;
 }
 .social-row {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+  margin-top: 28px;
 }
 .social-link {
   display: inline-flex;
