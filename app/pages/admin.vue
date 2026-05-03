@@ -19,6 +19,7 @@
           <button class="btn-posts" :class="{ active: showPosts }" @click="togglePosts">
             Posts {{ allPosts.length ? `(${allPosts.length})` : '' }}
           </button>
+          <button class="btn-posts" :class="{ active: showStats }" @click="toggleStats">Stats</button>
           <span v-if="editingPostId" class="nav-mode">· Editing</span>
         </div>
         <div class="nav-actions">
@@ -30,6 +31,31 @@
         </div>
       </div>
     </nav>
+
+    <!-- 통계 패널 -->
+    <div v-if="showStats" class="stats-panel">
+      <div class="stats-header">
+        <span class="stats-title-label">방문자 통계</span>
+        <button class="stats-refresh" @click="loadStats" :disabled="statsLoading">↻ 새로고침</button>
+      </div>
+      <div v-if="statsLoading" class="stats-loading">불러오는 중...</div>
+      <div v-else-if="statsData" class="stats-body">
+        <div class="stats-home-row">
+          <span class="stats-page-label">홈페이지 방문</span>
+          <span class="stats-page-count">{{ statsData.homeViews.toLocaleString() }} views</span>
+        </div>
+        <div class="stats-section-divider"></div>
+        <p class="stats-section-heading">글별 조회수</p>
+        <div class="stats-list">
+          <div v-if="!statsData.posts.length" class="stats-empty">아직 글이 없습니다.</div>
+          <div v-for="(post, i) in statsData.posts" :key="post.id" class="stats-post-row">
+            <span class="stats-rank">{{ i + 1 }}</span>
+            <span class="stats-post-name">{{ post.title }}</span>
+            <span class="stats-post-views">{{ (post.views || 0).toLocaleString() }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- 글 목록 패널 -->
     <div v-if="showPosts" class="posts-panel">
@@ -145,6 +171,9 @@ const toast = ref('')
 const editingPostId = ref(null)
 const allPosts = ref([])
 const showPosts = ref(false)
+const showStats = ref(false)
+const statsData = ref(null)
+const statsLoading = ref(false)
 
 // ── 임시 저장 ──────────────────────────────────────────
 const DRAFT_KEY = 'admin-draft'
@@ -218,7 +247,31 @@ const loadPosts = async () => {
   allPosts.value = data || []
 }
 
-const togglePosts = () => { showPosts.value = !showPosts.value }
+const togglePosts = () => {
+  showPosts.value = !showPosts.value
+  if (showPosts.value) showStats.value = false
+}
+
+const loadStats = async () => {
+  statsLoading.value = true
+  const [{ data: pageData }, { data: postData }] = await Promise.all([
+    supabase.from('page_views').select('views').eq('page', 'home').single(),
+    supabase.from('post').select('id, title, views').order('views', { ascending: false })
+  ])
+  statsData.value = {
+    homeViews: pageData?.views ?? 0,
+    posts: postData || []
+  }
+  statsLoading.value = false
+}
+
+const toggleStats = async () => {
+  showStats.value = !showStats.value
+  if (showStats.value) {
+    showPosts.value = false
+    await loadStats()
+  }
+}
 
 const formatDate = (dateString) => {
   if (!dateString) return ''
@@ -524,6 +577,97 @@ const save = async () => {
 .row-btn--edit:hover { background: #0066cc; color: #fff; border-color: #0066cc; }
 .row-btn--delete { background: #fff0f0; border-color: #f0c0c0; color: #c0392b; }
 .row-btn--delete:hover { background: #c0392b; color: #fff; border-color: #c0392b; }
+
+/* Stats panel */
+.stats-panel {
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 0 24px;
+  background: #fff;
+  border-bottom: 1px solid #e0e0e0;
+}
+.stats-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 0 12px;
+  border-bottom: 1px solid #f0f0ee;
+}
+.stats-title-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #1d1d1f;
+  letter-spacing: 0.04em;
+}
+.stats-refresh {
+  background: transparent;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: #6e6e73;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.stats-refresh:hover:not(:disabled) { border-color: #aaa; color: #1d1d1f; }
+.stats-refresh:disabled { opacity: 0.4; cursor: not-allowed; }
+.stats-loading { padding: 20px 0; color: #8a8a8e; font-size: 0.88rem; }
+.stats-body { padding: 12px 0 16px; }
+.stats-home-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  gap: 12px;
+}
+.stats-page-label { font-size: 0.88rem; font-weight: 600; color: #1d1d1f; }
+.stats-page-count { font-size: 0.88rem; font-weight: 700; color: #0066cc; }
+.stats-section-divider { height: 1px; background: #f0f0ee; margin: 8px 0; }
+.stats-section-heading {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #8a8a8e;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin: 0 0 8px 0;
+  font-family: 'JetBrains Mono', monospace;
+}
+.stats-list { display: flex; flex-direction: column; gap: 2px; }
+.stats-empty { font-size: 0.88rem; color: #8a8a8e; padding: 8px 0; }
+.stats-post-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f8f8f6;
+}
+.stats-post-row:last-child { border-bottom: none; }
+.stats-rank {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #c0c0c0;
+  font-family: 'JetBrains Mono', monospace;
+  min-width: 18px;
+}
+.stats-post-name {
+  flex: 1;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: #2c2c2e;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stats-post-views {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #4a4a4e;
+  font-family: 'JetBrains Mono', monospace;
+  flex-shrink: 0;
+}
 
 /* Editor main */
 .editor-main { flex: 1; display: flex; flex-direction: column; max-width: 1400px; width: 100%; margin: 0 auto; padding: 28px 24px 24px; gap: 12px; }

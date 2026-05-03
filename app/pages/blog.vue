@@ -117,6 +117,10 @@
                 <div class="post-item-top">
                   <time class="post-date">{{ formatDate(post.created_at) }}</time>
                   <span v-if="post.category" class="post-category">{{ displayCategory(post.category) }}</span>
+                  <span class="post-views">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    {{ formatViews(post.views) }}
+                  </span>
                 </div>
                 <h3 class="post-title" v-html="highlight(post.title)"></h3>
                 <p class="post-excerpt" v-html="highlight(getPreviewText(post.content))"></p>
@@ -151,7 +155,7 @@ const graphVisible = ref(true)
 const { data: posts, pending } = await useAsyncData('blog-posts', async () => {
   const { data, error } = await supabase
     .from('post')
-    .select('id, created_at, title, content, category, tags')
+    .select('id, created_at, title, content, category, tags, views')
     .order('created_at', { ascending: false })
   if (error) {
     const { data: fallback } = await supabase
@@ -165,6 +169,12 @@ const { data: posts, pending } = await useAsyncData('blog-posts', async () => {
 
 const parseTagList = (tags) =>
   tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : []
+
+const formatViews = (n) => {
+  if (!n) return '0'
+  if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k'
+  return String(n)
+}
 
 // ── Category tree ────────────────────────────────────────────────────
 const categoryTree = computed(() => {
@@ -913,6 +923,15 @@ onUnmounted(() => stopAnimation())
   border-radius: 4px;
   padding: 2px 8px;
   letter-spacing: 0.04em;
+}
+.post-views {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.72rem;
+  color: #aaa;
+  font-weight: 500;
+  margin-left: auto;
 }
 .post-tag {
   font-size: 0.7rem;

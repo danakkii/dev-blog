@@ -137,7 +137,7 @@
     </main>
 
     <footer class="footer">
-      <p>© {{ new Date().getFullYear() }} Dana Kim</p>
+      <p>© {{ new Date().getFullYear() }} Dana Kim<span v-if="homeViews" class="footer-views"> · {{ homeViews.toLocaleString() }} visitors</span></p>
     </footer>
   </div>
 </template>
@@ -185,8 +185,12 @@ const getPreviewText = (text) => {
 }
 
 const giscusContainer = ref(null)
+const homeViews = ref(0)
 
-onMounted(() => {
+onMounted(async () => {
+  const { data } = await supabase.rpc('increment_page_views', { page_name: 'home' })
+  if (data != null) homeViews.value = data
+
   if (giscusContainer.value) {
     const script = document.createElement('script')
     script.src = 'https://giscus.app/client.js'
@@ -495,6 +499,7 @@ onMounted(() => {
   font-size: 0.82rem;
   color: #aaa;
 }
+.footer-views { color: #c8c8c8; }
 
 /* Mobile */
 @media (max-width: 600px) {

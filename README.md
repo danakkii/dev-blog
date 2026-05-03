@@ -20,7 +20,28 @@ npm run preview
 
 ---
 
+## Database Migration
+
+방문자 수 기능 추가 시 Supabase SQL Editor에서 아래 파일을 실행하세요:
+
+```
+supabase/add_views.sql
+```
+
+---
+
 ## Release Notes
+
+### v0.6.0 — 2026-05-03
+
+#### 방문자 수 추적
+- **글별 조회수**: 포스트 상세 페이지 접속 시 자동 카운트 증가. 제목 하단 메타 영역에 눈 아이콘과 함께 표시 (1000 이상은 `1.2k` 형식)
+- **홈 방문자 수**: 홈 페이지 접속 시 자동 카운트 증가. 푸터에 `X visitors` 표시
+- **블로그 목록 조회수 표시**: 글 카드 우측 상단에 조회수 아이콘 표시
+- **통계 대시보드**: Admin 페이지 Stats 버튼 → 홈 방문 수 + 글별 조회수 랭킹 확인 가능
+- **Supabase 연동**: `post` 테이블에 `views` 컬럼 추가, `page_views` 테이블 신설. `SECURITY DEFINER` RPC 함수로 anon 사용자도 안전하게 카운트 증가
+
+---
 
 ### v0.5.0 — 2026-04-29
 

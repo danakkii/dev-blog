@@ -20,6 +20,11 @@
               <time class="post-date">{{ formatDate(post.created_at) }}</time>
               <span class="meta-sep">·</span>
               <span class="read-time">{{ readingTime }} min read</span>
+              <span class="meta-sep">·</span>
+              <span class="view-count">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                {{ formatViews(viewCount) }}
+              </span>
             </div>
             <h1 class="post-title">{{ post.title }}</h1>
             <div class="post-divider"></div>
@@ -70,7 +75,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
+import { ref, watch, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import { marked } from 'marked'
 import hljs from 'highlight.js'
 
@@ -198,6 +203,15 @@ const activeHeading = ref('')
 const markdownBodyEl = ref(null)
 const giscusContainer = ref(null)
 const showScrollTop = ref(false)
+const viewCount = ref(post.value?.views ?? 0)
+
+const formatViews = (n) => {
+  if (!n) return '0'
+  if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k'
+  return String(n)
+}
+
+watch(() => post.value?.views, (v) => { if (v != null) viewCount.value = v })
 
 const scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' })
 
@@ -254,6 +268,11 @@ const renderMermaid = async () => {
 
 onMounted(async () => {
   window.addEventListener('scroll', onScroll, { passive: true })
+
+  if (post.value?.id) {
+    const { data } = await supabase.rpc('increment_post_views', { post_id: post.value.id })
+    if (data != null) viewCount.value = data
+  }
 
   if (giscusContainer.value) {
     const script = document.createElement('script')
@@ -384,6 +403,14 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll))
 }
 .meta-sep { color: #c0c0c0; font-size: 0.75rem; }
 .read-time { font-size: 0.8rem; color: #8a8a8e; font-weight: 500; }
+.view-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: #8a8a8e;
+  font-weight: 500;
+}
 .post-title {
   font-size: 2.4rem;
   font-weight: 800;
