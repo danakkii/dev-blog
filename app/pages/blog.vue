@@ -117,7 +117,7 @@
                 <div class="post-item-top">
                   <time class="post-date">{{ formatDate(post.created_at) }}</time>
                   <span v-if="post.category" class="post-category">{{ displayCategory(post.category) }}</span>
-                  <span class="post-views">
+                  <span v-if="isAdminViewer" class="post-views">
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                     {{ formatViews(post.views) }}
                   </span>
@@ -151,6 +151,8 @@ const selectedTagId = ref(null)
 const searchQuery = ref('')
 const searchFocused = ref(false)
 const graphVisible = ref(true)
+const isAdminViewer = ref(false)
+const ADMIN_AUTH_KEY = 'devblog-admin-authenticated'
 // ── Data ────────────────────────────────────────────────────────────
 const { data: posts, pending } = await useAsyncData('blog-posts', async () => {
   const { data, error } = await supabase
@@ -508,6 +510,8 @@ function onGraphMouseLeave() { hoveredNodeId = null }
 
 // ── Lifecycle ────────────────────────────────────────────────────────
 onMounted(() => {
+  isAdminViewer.value = localStorage.getItem(ADMIN_AUTH_KEY) === '1'
+
   watch(posts, p => {
     if (p && p.length > 0) startGraph(p)
   }, { immediate: true })

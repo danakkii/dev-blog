@@ -19,11 +19,17 @@
         <p class="about-bio">Building end-to-end data systems — from ingestion pipelines to real-time APIs and LLM-powered automation, turning large-scale data into reliable infrastructure.</p>
         <p class="about-bio-ko">데이터가 실제 문제를 해결하는 시스템이 될 때까지 설계합니다.</p>
         <div class="social-row">
-          <a href="mailto:danakkii22@gmail.com" target="_blank" class="social-link">Gmail</a>
+          <a href="mailto:danakkii22@gmail.com" target="_blank" class="social-link">
+            <img src="/icons/gmail.svg" alt="Gmail" class="social-icon" />
+          </a>
           <span class="sep">·</span>
-          <a href="https://www.linkedin.com/in/dana-kim-24a547325/" target="_blank" class="social-link">LinkedIn</a>
+          <a href="https://www.linkedin.com/in/dana-kim-24a547325/" target="_blank" class="social-link">
+            <img src="/icons/linkedin.svg" alt="LinkedIn" class="social-icon" />
+          </a>
           <span class="sep">·</span>
-          <a href="https://github.com/danakkii" target="_blank" class="social-link">GitHub</a>
+          <a href="https://github.com/danakkii" target="_blank" class="social-link">
+            <img src="/icons/github.svg" alt="GitHub" class="social-icon" />
+          </a>
         </div>
       </section>
 
@@ -323,15 +329,21 @@ onMounted(async () => {
   flex-wrap: wrap;
 }
 .social-link {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #1d1d1f;
+  display: inline-flex;
+  align-items: center;
   text-decoration: none;
-  border-bottom: 1px solid #c8c8c8;
-  padding-bottom: 1px;
-  transition: border-color 0.15s, color 0.15s;
+  border-bottom: none;
+  padding-bottom: 0;
+  transition: opacity 0.15s;
 }
-.social-link:hover { color: #0066cc; border-color: #0066cc; }
+.social-link:hover { opacity: 0.8; }
+.social-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+  opacity: 1;
+  filter: brightness(0.75);
+}
 .sep { color: #c8c8c8; font-size: 0.75rem; }
 
 /* Career */

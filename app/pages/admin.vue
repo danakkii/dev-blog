@@ -152,6 +152,7 @@ const processMermaid = (html) => html.replace(
 
 // ✏️ 여기서 비밀번호 변경
 const ADMIN_PASSWORD = 'dana2024'
+const ADMIN_AUTH_KEY = 'devblog-admin-authenticated'
 
 const supabase = useSupabaseClient()
 
@@ -229,10 +230,12 @@ const linkDialog = ref({ show: false, text: '', url: '', cursorPos: 0 })
 const login = async () => {
   if (password.value === ADMIN_PASSWORD) {
     authenticated.value = true
+    localStorage.setItem(ADMIN_AUTH_KEY, '1')
     loginError.value = false
     await loadPosts()
     checkDraft()
   } else {
+    localStorage.removeItem(ADMIN_AUTH_KEY)
     loginError.value = true
     password.value = ''
   }
