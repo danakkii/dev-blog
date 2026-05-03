@@ -14,10 +14,12 @@
 
       <!-- About -->
       <section id="about" class="section about-section">
-        <p class="about-label">Data Analytics Engineer</p>
+        <p class="about-label">Data Engineer</p>
         <h1 class="about-name">Dana Kim</h1>
-        <p class="about-bio">Building end-to-end data systems — from ingestion pipelines to real-time APIs and LLM-powered automation, turning large-scale data into reliable infrastructure.</p>
-        <p class="about-bio-ko">데이터가 실제 문제를 해결하는 시스템이 될 때까지 설계합니다.</p>
+        <p class="about-bio">데이터 인프라가 전무했던 환경에서 2,000만 건 규모의 영수증 분석 마트를 설계하여, 전사 최초의 데이터 기반 의사결정 환경을 구축해온 데이터 엔지니어 김다나입니다.</p>
+        <p class="about-bio">단순히 데이터를 정제하는 것에 그치지 않고, 한 번 만들고 버려지는 데이터가 아닌 실제 비즈니스 성과에 직결되는 구조를 지속적으로 만들어 왔습니다.</p>
+        <p class="about-bio-ko">I am Dana Kim, a data engineer who has designed a 20-million-record analytics mart in an environment with no data infrastructure and built the company's first data-driven decision-making environment.</p>
+        <p class="about-bio-ko">Rather than stopping at simply refining data, I have continuously built structures where data is not created once and discarded, but directly connected to real business outcomes.</p>
         <div class="social-row">
           <a href="mailto:danakkii22@gmail.com" target="_blank" class="social-link">
             <img src="/icons/gmail.svg" alt="Gmail" class="social-icon" />
