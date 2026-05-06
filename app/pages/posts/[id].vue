@@ -6,6 +6,7 @@
         <div class="nav-links">
           <NuxtLink to="/" exact-active-class="nav-active">Home</NuxtLink>
           <NuxtLink to="/blog" active-class="nav-active" class="nav-active">Blog</NuxtLink>
+          <button class="lang-btn" @click="toggleLang">{{ lang === 'ko' ? 'EN' : 'KR' }}</button>
         </div>
       </div>
     </nav>
@@ -16,6 +17,7 @@
 
         <article v-else-if="post" class="post-article">
           <header class="post-header">
+            <div v-if="translating" class="translating-notice">Translating...</div>
             <div class="post-meta">
               <time class="post-date">{{ formatDate(post.created_at) }}</time>
               <span class="meta-sep">·</span>
@@ -26,14 +28,14 @@
                 {{ formatViews(viewCount) }}
               </span>
             </div>
-            <h1 class="post-title">{{ post.title }}</h1>
+            <h1 class="post-title">{{ (lang === 'en' && translatedTitle) ? translatedTitle : post.title }}</h1>
             <div class="post-divider"></div>
           </header>
 
           <div ref="markdownBodyEl" class="post-body markdown-body" v-html="parsedContent"></div>
         </article>
 
-        <div v-else class="error">포스트를 찾을 수 없습니다.</div>
+        <div v-else class="error">{{ lang === 'ko' ? '포스트를 찾을 수 없습니다.' : 'Post not found.' }}</div>
 
         <section class="comments-section">
           <div class="comments-divider"></div>
@@ -78,6 +80,28 @@
 import { ref, watch, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import { marked } from 'marked'
 import hljs from 'highlight.js'
+
+const { lang, toggleLang, initLang } = useLocale()
+const { translate } = useTranslation()
+
+const translatedTitle = ref('')
+const translatedContent = ref('')
+const translating = ref(false)
+
+const doTranslate = async () => {
+  if (!post.value || translatedTitle.value) return
+  translating.value = true
+  try {
+    ;[translatedTitle.value, translatedContent.value] = await Promise.all([
+      translate(post.value.title ?? ''),
+      translate(post.value.content ?? ''),
+    ])
+  } finally {
+    translating.value = false
+  }
+}
+
+watch(lang, newLang => { if (newLang === 'en') doTranslate() })
 
 const toHeadingId = (raw) =>
   'h-' + raw
@@ -162,8 +186,11 @@ const processVideoEmbeds = (html) => {
 }
 
 const parsedContent = computed(() => {
-  if (!post.value?.content) return ''
-  let html = marked.parse(post.value.content)
+  const content = (lang.value === 'en' && translatedContent.value)
+    ? translatedContent.value
+    : post.value?.content
+  if (!content) return ''
+  let html = marked.parse(content)
   html = processMermaid(html)
   html = processVideoEmbeds(html)
   return html
@@ -181,10 +208,13 @@ const readingTime = computed(() => {
 })
 
 const toc = computed(() => {
-  if (!post.value?.content) return []
+  const content = (lang.value === 'en' && translatedContent.value)
+    ? translatedContent.value
+    : post.value?.content
+  if (!content) return []
   const headings = []
   let inCodeBlock = false
-  for (const line of post.value.content.split('\n')) {
+  for (const line of content.split('\n')) {
     if (/^(`{3,}|~{3,})/.test(line)) { inCodeBlock = !inCodeBlock; continue }
     if (inCodeBlock) continue
     const m = line.match(/^(#{1,3})\s+(.+)$/)
@@ -268,7 +298,18 @@ const renderMermaid = async () => {
   }
 }
 
+watch(translatedContent, async () => {
+  if (lang.value === 'en') {
+    await nextTick()
+    addCopyButtons()
+    await renderMermaid()
+  }
+})
+
 onMounted(async () => {
+  initLang()
+  if (lang.value === 'en') doTranslate()
+
   isAdminViewer.value = localStorage.getItem(ADMIN_AUTH_KEY) === '1'
 
   window.addEventListener('scroll', onScroll, { passive: true })
@@ -360,7 +401,7 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll))
   text-decoration: none;
   letter-spacing: 0.02em;
 }
-.nav-links { display: flex; gap: 20px; }
+.nav-links { display: flex; gap: 20px; align-items: center; }
 .nav-links a {
   font-size: 0.85rem;
   color: #6e6e73;
@@ -370,6 +411,21 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll))
 }
 .nav-links a:hover { color: #1d1d1f; }
 .nav-links a.nav-active { color: #1d1d1f; font-weight: 600; }
+.lang-btn {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #6e6e73;
+  background: none;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 3px 9px;
+  cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 0.06em;
+  transition: color 0.15s, border-color 0.15s;
+  line-height: 1.6;
+}
+.lang-btn:hover { color: #1d1d1f; border-color: #1d1d1f; }
 
 /* Page layout: article + TOC sidebar */
 .page-layout {
@@ -387,6 +443,16 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll))
 .main-content { min-width: 0; }
 .loading { color: #8a8a8e; padding: 80px 0; text-align: center; font-size: 0.95rem; }
 .error { color: #8a8a8e; padding: 80px 0; text-align: center; font-size: 0.95rem; }
+
+/* Translating notice */
+.translating-notice {
+  font-size: 0.78rem;
+  color: #8a8a8e;
+  font-family: 'JetBrains Mono', monospace;
+  margin-bottom: 12px;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
 /* Post header */
 .post-header { margin-bottom: 48px; }

@@ -6,6 +6,7 @@
         <div class="nav-links">
           <NuxtLink to="/" exact-active-class="nav-active">Home</NuxtLink>
           <NuxtLink to="/blog" active-class="nav-active">Blog</NuxtLink>
+          <button class="lang-btn" @click="toggleLang">{{ lang === 'ko' ? 'EN' : 'KR' }}</button>
         </div>
       </div>
     </nav>
@@ -16,10 +17,14 @@
       <section id="about" class="section about-section">
         <p class="about-label">Data Engineer</p>
         <h1 class="about-name">Dana Kim</h1>
-        <p class="about-bio">데이터 인프라가 전무했던 환경에서 2,000만 건 규모의 영수증 분석 마트를 설계하여, 전사 최초의 데이터 기반 의사결정 환경을 구축해온 데이터 엔지니어 김다나입니다.</p>
-        <p class="about-bio">단순히 데이터를 정제하는 것에 그치지 않고, 한 번 만들고 버려지는 데이터가 아닌 실제 비즈니스 성과에 직결되는 구조를 지속적으로 만들어 왔습니다.</p>
-        <p class="about-bio-ko">I am Dana Kim, a data engineer who has designed a 20-million-record analytics mart in an environment with no data infrastructure and built the company's first data-driven decision-making environment.</p>
-        <p class="about-bio-ko">Rather than stopping at simply refining data, I have continuously built structures where data is not created once and discarded, but directly connected to real business outcomes.</p>
+        <template v-if="lang === 'ko'">
+          <p class="about-bio">데이터 인프라가 전무했던 환경에서 2,000만 건 규모의 영수증 분석 마트를 설계하여, 전사 최초의 데이터 기반 의사결정 환경을 구축해온 데이터 엔지니어 김다나입니다.</p>
+          <p class="about-bio">단순히 데이터를 정제하는 것에 그치지 않고, 한 번 만들고 버려지는 데이터가 아닌 실제 비즈니스 성과에 직결되는 구조를 지속적으로 만들어 왔습니다.</p>
+        </template>
+        <template v-else>
+          <p class="about-bio">I am Dana Kim, a data engineer who has designed a 20-million-record analytics mart in an environment with no data infrastructure and built the company's first data-driven decision-making environment.</p>
+          <p class="about-bio">Rather than stopping at simply refining data, I have continuously built structures where data is not created once and discarded, but directly connected to real business outcomes.</p>
+        </template>
         <div class="social-row">
           <a href="mailto:danakkii22@gmail.com" target="_blank" class="social-link">
             <img src="/icons/gmail.svg" alt="Gmail" class="social-icon" />
@@ -49,10 +54,18 @@
             </div>
             <h3 class="career-role">Data Analytics Engineer</h3>
             <ul class="career-bullets">
-              <li>전사 최초 영수증 분석용 데이터마트 구축 (2,000만 건, Airflow 기반)</li>
-              <li>벡터 DB(Qdrant) 활용 30만 건 상점명 정규화 및 지도 시각화</li>
-              <li>CS 문의 패턴 분석 및 LLM RAG 챗봇 도입으로 일 평균 CS 30% 절감</li>
-              <li>FastAPI 기반 실시간 API 및 Redis 기반 일 10만 장 중복 검증 시스템 구축</li>
+              <template v-if="lang === 'ko'">
+                <li>전사 최초 영수증 분석용 데이터마트 구축 (2,000만 건, Airflow 기반)</li>
+                <li>벡터 DB(Qdrant) 활용 30만 건 상점명 정규화 및 지도 시각화</li>
+                <li>CS 문의 패턴 분석 및 LLM RAG 챗봇 도입으로 일 평균 CS 30% 절감</li>
+                <li>FastAPI 기반 실시간 API 및 Redis 기반 일 10만 장 중복 검증 시스템 구축</li>
+              </template>
+              <template v-else>
+                <li>Built the company's first receipt analytics data mart (20M rows, Airflow-based)</li>
+                <li>Normalized 300K store names using Vector DB (Qdrant) with map visualization</li>
+                <li>Reduced daily CS volume by 30% through CS inquiry pattern analysis and LLM RAG chatbot</li>
+                <li>Built real-time FastAPI-based API and Redis-based 100K/day receipt duplicate validation system</li>
+              </template>
             </ul>
           </div>
 
@@ -63,9 +76,16 @@
             </div>
             <h3 class="career-role">Back-end Developer</h3>
             <ul class="career-bullets">
-              <li>소셜 로그인 플로우 재설계로 데이터 정합성 보장 및 가입 전환율 1.5배 향상</li>
-              <li>홈 화면 병목 쿼리 최적화로 접근 시간 5초 이상 단축</li>
-              <li>AI 코드 리뷰 자동화 적용으로 리뷰 속도 30% 향상</li>
+              <template v-if="lang === 'ko'">
+                <li>소셜 로그인 플로우 재설계로 데이터 정합성 보장 및 가입 전환율 1.5배 향상</li>
+                <li>홈 화면 병목 쿼리 최적화로 접근 시간 5초 이상 단축</li>
+                <li>AI 코드 리뷰 자동화 적용으로 리뷰 속도 30% 향상</li>
+              </template>
+              <template v-else>
+                <li>Redesigned social login flow to ensure data integrity and improved sign-up conversion rate by 1.5x</li>
+                <li>Optimized bottleneck queries on the home screen, reducing access time by over 5 seconds</li>
+                <li>Applied AI code review automation, improving review speed by 30%</li>
+              </template>
             </ul>
           </div>
 
@@ -76,8 +96,14 @@
             </div>
             <h3 class="career-role">AI Application Engineer</h3>
             <ul class="career-bullets">
-              <li>Gaussian Noise 기법 활용 DDCNN 모델 최적화로 이상치 탐지 성능 35% 향상</li>
-              <li>AI 모델 학습용 라벨링 작업 자동화 시스템 개발</li>
+              <template v-if="lang === 'ko'">
+                <li>Gaussian Noise 기법 활용 DDCNN 모델 최적화로 이상치 탐지 성능 35% 향상</li>
+                <li>AI 모델 학습용 라벨링 작업 자동화 시스템 개발</li>
+              </template>
+              <template v-else>
+                <li>Optimized DDCNN model using Gaussian Noise, improving anomaly detection performance by 35%</li>
+                <li>Developed automated labeling system for AI model training</li>
+              </template>
             </ul>
           </div>
 
@@ -114,10 +140,10 @@
           <NuxtLink to="/blog" class="view-all">All posts →</NuxtLink>
         </div>
 
-        <div v-if="pending" class="loading">불러오는 중...</div>
+        <div v-if="pending" class="loading">{{ lang === 'ko' ? '불러오는 중...' : 'Loading...' }}</div>
 
         <div v-else class="post-list">
-          <p v-if="!latestPosts || latestPosts.length === 0" class="empty">아직 작성된 글이 없습니다.</p>
+          <p v-if="!latestPosts || latestPosts.length === 0" class="empty">{{ lang === 'ko' ? '아직 작성된 글이 없습니다.' : 'No posts yet.' }}</p>
 
           <NuxtLink
             v-for="post in latestPosts"
@@ -138,7 +164,7 @@
       <!-- Guestbook -->
       <section id="guestbook" class="section">
         <h2 class="section-title">Guestbook</h2>
-        <p class="guestbook-desc">방문해 주셔서 감사합니다. 자유롭게 발자취를 남겨주세요.</p>
+        <p class="guestbook-desc">{{ lang === 'ko' ? '방문해 주셔서 감사합니다. 자유롭게 발자취를 남겨주세요.' : 'Thank you for visiting. Feel free to leave a message.' }}</p>
         <div ref="giscusContainer"></div>
       </section>
 
@@ -152,6 +178,8 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+
+const { lang, toggleLang, initLang } = useLocale()
 
 useSeoMeta({
   title: 'Dana Kim — Data Analytics Engineer',
@@ -196,6 +224,8 @@ const giscusContainer = ref(null)
 const homeViews = ref(0)
 
 onMounted(async () => {
+  initLang()
+
   const { data } = await supabase.rpc('increment_page_views', { page_name: 'home' })
   if (data != null) homeViews.value = data
 
@@ -260,7 +290,7 @@ onMounted(async () => {
   text-decoration: none;
   letter-spacing: 0.02em;
 }
-.nav-links { display: flex; gap: 20px; }
+.nav-links { display: flex; gap: 20px; align-items: center; }
 .nav-links a {
   font-size: 0.85rem;
   color: #6e6e73;
@@ -270,6 +300,21 @@ onMounted(async () => {
 }
 .nav-links a:hover { color: #1d1d1f; }
 .nav-links a.nav-active { color: #1d1d1f; font-weight: 600; }
+.lang-btn {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #6e6e73;
+  background: none;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 3px 9px;
+  cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 0.06em;
+  transition: color 0.15s, border-color 0.15s;
+  line-height: 1.6;
+}
+.lang-btn:hover { color: #1d1d1f; border-color: #1d1d1f; }
 
 /* Main */
 .main {
@@ -317,15 +362,6 @@ onMounted(async () => {
   line-height: 1.85;
   margin: 0;
   max-width: 600px;
-}
-.about-bio-ko {
-  font-size: 0.88rem;
-  color: #8a8a8e;
-  font-style: italic;
-  margin: 0;
-}
-.about-bio + .about-bio-ko {
-  margin-top: 16px;
 }
 .social-row {
   display: flex;

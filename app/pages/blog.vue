@@ -6,6 +6,7 @@
         <div class="nav-links">
           <NuxtLink to="/" exact-active-class="nav-active">Home</NuxtLink>
           <NuxtLink to="/blog" active-class="nav-active">Blog</NuxtLink>
+          <button class="lang-btn" @click="toggleLang">{{ lang === 'ko' ? 'EN' : 'KR' }}</button>
         </div>
       </div>
     </nav>
@@ -15,7 +16,7 @@
       <!-- Left sidebar: hierarchical categories -->
       <aside class="sidebar">
         <p class="sidebar-title">Blog</p>
-        <p class="sidebar-desc">데이터와 개발에 관한 생각들을 기록합니다.</p>
+        <p class="sidebar-desc">{{ lang === 'ko' ? '데이터와 개발에 관한 생각들을 기록합니다.' : 'Thoughts on data and development.' }}</p>
         <div class="sidebar-divider"></div>
 
         <p class="cat-label">Categories</p>
@@ -89,23 +90,24 @@
             v-model="searchQuery"
             class="search-input"
             type="search"
-            placeholder="제목 또는 내용 검색..."
+            :placeholder="lang === 'ko' ? '제목 또는 내용 검색...' : 'Search title or content...'"
             @focus="searchFocused = true"
             @blur="searchFocused = false"
           />
           <button v-if="searchQuery" class="search-clear" @click="searchQuery = ''" aria-label="clear">×</button>
         </div>
 
-        <div v-if="pending" class="loading">불러오는 중...</div>
+        <div v-if="translatingPosts" class="translating-notice">Translating...</div>
+        <div v-if="pending" class="loading">{{ lang === 'ko' ? '불러오는 중...' : 'Loading...' }}</div>
 
         <div v-else>
           <p v-if="isFiltering" class="result-count">
-            <span v-if="filteredPosts.length">{{ filteredPosts.length }}개의 글</span>
-            <span v-else>검색 결과가 없습니다.</span>
+            <span v-if="filteredPosts.length">{{ filteredPosts.length }}{{ lang === 'ko' ? '개의 글' : ' posts' }}</span>
+            <span v-else>{{ lang === 'ko' ? '검색 결과가 없습니다.' : 'No results found.' }}</span>
           </p>
 
           <div class="post-list">
-            <p v-if="!filteredPosts.length && !isFiltering" class="empty">아직 작성된 글이 없습니다.</p>
+            <p v-if="!filteredPosts.length && !isFiltering" class="empty">{{ lang === 'ko' ? '아직 작성된 글이 없습니다.' : 'No posts yet.' }}</p>
 
             <NuxtLink
               v-for="post in filteredPosts"
@@ -122,8 +124,8 @@
                     {{ formatViews(post.views) }}
                   </span>
                 </div>
-                <h3 class="post-title" v-html="highlight(post.title)"></h3>
-                <p class="post-excerpt" v-html="highlight(getPreviewText(post.content))"></p>
+                <h3 class="post-title" v-html="highlight(lang === 'en' && titleTranslations[post.id] ? titleTranslations[post.id] : post.title)"></h3>
+                <p class="post-excerpt" v-html="highlight(lang === 'en' && excerptTranslations[post.id] ? excerptTranslations[post.id] : getPreviewText(post.content))"></p>
                 <span class="post-arrow">Read more →</span>
               </div>
               <div v-if="getThumbnailImage(post.content)" class="post-thumbnail">
@@ -145,7 +147,32 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 
+const { lang, toggleLang, initLang } = useLocale()
+const { translate } = useTranslation()
 const supabase = useSupabaseClient()
+
+const titleTranslations = reactive({})
+const excerptTranslations = reactive({})
+const translatingPosts = ref(false)
+
+const translateVisiblePosts = async (list) => {
+  if (!list?.length) return
+  const untranslated = list.filter(p => !titleTranslations[p.id])
+  if (!untranslated.length) return
+  translatingPosts.value = true
+  await Promise.all(untranslated.map(async p => {
+    const [t, e] = await Promise.all([
+      translate(p.title),
+      translate(getPreviewText(p.content)),
+    ])
+    titleTranslations[p.id] = t
+    excerptTranslations[p.id] = e
+  }))
+  translatingPosts.value = false
+}
+
+watch(lang, newLang => { if (newLang === 'en') translateVisiblePosts(filteredPosts.value) })
+watch(filteredPosts, newPosts => { if (lang.value === 'en') translateVisiblePosts(newPosts) })
 const selectedCategory = ref('All')
 const selectedTagId = ref(null)
 const searchQuery = ref('')
@@ -510,6 +537,8 @@ function onGraphMouseLeave() { hoveredNodeId = null }
 
 // ── Lifecycle ────────────────────────────────────────────────────────
 onMounted(() => {
+  initLang()
+  if (lang.value === 'en') translateVisiblePosts(filteredPosts.value)
   isAdminViewer.value = localStorage.getItem(ADMIN_AUTH_KEY) === '1'
 
   watch(posts, p => {
@@ -561,7 +590,7 @@ onUnmounted(() => stopAnimation())
   text-decoration: none;
   letter-spacing: 0.02em;
 }
-.nav-links { display: flex; gap: 20px; }
+.nav-links { display: flex; gap: 20px; align-items: center; }
 .nav-links a {
   font-size: 0.85rem;
   color: #6e6e73;
@@ -571,6 +600,21 @@ onUnmounted(() => stopAnimation())
 }
 .nav-links a:hover { color: #1d1d1f; }
 .nav-links a.nav-active { color: #1d1d1f; font-weight: 600; }
+.lang-btn {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #6e6e73;
+  background: none;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 3px 9px;
+  cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 0.06em;
+  transition: color 0.15s, border-color 0.15s;
+  line-height: 1.6;
+}
+.lang-btn:hover { color: #1d1d1f; border-color: #1d1d1f; }
 
 /* Page layout */
 .page-body {
@@ -848,6 +892,14 @@ onUnmounted(() => stopAnimation())
   margin-bottom: 16px;
   font-family: 'JetBrains Mono', monospace;
 }
+.translating-notice {
+  font-size: 0.78rem;
+  color: #8a8a8e;
+  font-family: 'JetBrains Mono', monospace;
+  margin-bottom: 12px;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 .loading { font-size: 0.9rem; color: #8a8a8e; padding: 24px 0; }
 .empty { font-size: 0.9rem; color: #8a8a8e; }
 
